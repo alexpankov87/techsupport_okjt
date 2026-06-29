@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: techsupport_okjt_bot
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - BOT_TOKEN=${BOT_TOKEN}
+      - MONGODB_URI=mongodb://mongo:27017/techsupport_okjt
+    depends_on:
+      - mongo
+    volumes:
+      - ./logs:/app/logs
+
+  mongo:
+    image: mongo:7
+    container_name: techsupport_okjt_mongo
+    restart: always
+    environment:
+      - MONGO_INITDB_DATABASE=techsupport_okjt
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data: 
