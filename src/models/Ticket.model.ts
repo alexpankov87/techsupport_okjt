@@ -34,6 +34,9 @@ export interface ITicket extends Document {
   priority: TicketPriority;
   createdBy: mongoose.Types.ObjectId;
   assignedTo?: mongoose.Types.ObjectId;
+  phone?: string;
+  media?: string[];
+  archived?: boolean;
   resolvedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -41,64 +44,32 @@ export interface ITicket extends Document {
 
 const TicketSchema = new Schema<ITicket>(
   {
-    number: {
-      type: String,
-      unique: true,
-    },
-    title: {
-      type: String,
-      required: true,
-    },
-    description: {
-      type: String,
-      required: true,
-    },
-    category: {
-      type: String,
-      enum: Object.values(TicketCategory),
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: Object.values(TicketStatus),
-      default: TicketStatus.NEW,
-    },
-    priority: {
-      type: String,
-      enum: Object.values(TicketPriority),
-      default: TicketPriority.MEDIUM,
-    },
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    assignedTo: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-    },
-    resolvedAt: {
-      type: Date,
-    },
+    number: { type: String, unique: true },
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    category: { type: String, enum: Object.values(TicketCategory), required: true },
+    status: { type: String, enum: Object.values(TicketStatus), default: TicketStatus.NEW },
+    priority: { type: String, enum: Object.values(TicketPriority), default: TicketPriority.MEDIUM },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    assignedTo: { type: Schema.Types.ObjectId, ref: 'User' },
+    phone: { type: String },
+    media: [{ type: String }],
+    archived: { type: Boolean, default: false, index: true },
+    resolvedAt: { type: Date },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
 TicketSchema.pre('save', async function (this: ITicket) {
   if (this.isNew) {
-    const lastTicket = await TicketModel.findOne()
-      .sort({ createdAt: -1 })
-      .select('number');
-    const lastNumber = lastTicket
-      ? parseInt(lastTicket.number.split('-')[1])
-      : 0;
+    const lastTicket = await TicketModel.findOne().sort({ createdAt: -1 }).select('number');
+    const lastNumber = lastTicket ? parseInt(lastTicket.number.split('-')[1]) : 0;
     this.number = `OKZ-${String(lastNumber + 1).padStart(4, '0')}`;
   }
 });
 
 TicketSchema.index({ status: 1, assignedTo: 1 });
 TicketSchema.index({ createdBy: 1, createdAt: -1 });
+TicketSchema.index({ archived: 1, status: 1 });
 
 export const TicketModel = mongoose.model<ITicket>('Ticket', TicketSchema);

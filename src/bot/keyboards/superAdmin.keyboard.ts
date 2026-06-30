@@ -2,9 +2,10 @@ import { Markup } from 'telegraf';
 
 export const superAdminMainKeyboard = Markup.keyboard([
   ['📋 Новая заявка', '📊 Журнал заявок'],
-  ['👥 Пользователи', '👑 Админы'],
-  ['📈 Статистика', '📊 Отчеты'],
-  ['⚙️ Настройки'],
+  ['📦 Архив заявок', '👥 Пользователи'],
+  ['👑 Админы', '📈 Статистика'],
+  ['📊 Отчеты', '⚙️ Настройки'],
+  ['🧹 Очистить завершенные'],
 ]).resize();
 
 export const userManagementKeyboard = (user: any) =>

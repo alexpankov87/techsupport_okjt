@@ -8,12 +8,12 @@ export interface BotContext extends Scenes.WizardContext<Scenes.WizardSessionDat
   user?: IUser;
   userService: UserService;
   ticketService: TicketService;
+  backToMainMenu?: (ctx: BotContext) => Promise<void>;
 }
 
 export const authMiddleware = (userService: UserService) => {
   return async (ctx: BotContext, next: () => Promise<void>) => {
     if (!ctx.from) return;
-
     try {
       const user = await userService.authenticate(ctx.from.id, ctx);
       ctx.user = user;

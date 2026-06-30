@@ -3,11 +3,12 @@ import { BotContext, authMiddleware } from './middlewares/auth.middleware';
 import { loggerMiddleware } from './middlewares/logger.middleware';
 import { UserService, TicketService } from '../services';
 import { UserRepository, TicketRepository } from '../repositories';
-import { UserRole, TicketStatus } from '../models';
+import { UserRole, TicketStatus, UserModel } from '../models';
 import { logger } from '../utils/logger';
 import { workerMainKeyboard } from './keyboards';
 import { userMainKeyboard } from './keyboards/user.keyboard';
 import { superAdminMainKeyboard } from './keyboards/superAdmin.keyboard';
+import { adminMainKeyboard } from './keyboards/admin.keyboard';
 import { createTicketScene, manageTicketScene, createUserTicketScene } from './scenes';
 import { setupCallbackHandlers } from './handlers';
 import { setupReportHandlers } from './handlers/report.handler';
@@ -17,7 +18,6 @@ import { setupUserManagementHandlers } from './handlers/userManagement.handler';
 export const createBot = (token: string): Telegraf<BotContext> => {
   const bot = new Telegraf<BotContext>(token);
 
-  // Зависимости
   const userRepository = new UserRepository();
   const ticketRepository = new TicketRepository();
   const userService = new UserService(userRepository);
@@ -26,346 +26,185 @@ export const createBot = (token: string): Telegraf<BotContext> => {
   bot.context.userService = userService;
   bot.context.ticketService = ticketService;
 
-  // Сцены
-  const stage = new Scenes.Stage<BotContext>([
-    createTicketScene,
-    manageTicketScene,
-    createUserTicketScene,
-  ]);
+  const stage = new Scenes.Stage<BotContext>([createTicketScene, manageTicketScene, createUserTicketScene]);
 
-  // Middleware
+  const backToMainMenu = async (ctx: BotContext) => {
+    let user = ctx.user;
+    if (!user && ctx.from) user = await UserModel.findOne({ telegramId: ctx.from.id });
+    if (!user) { await ctx.reply('Главное меню', userMainKeyboard); return; }
+    if (user.role === UserRole.SUPER_ADMIN) await ctx.reply('Главное меню', superAdminMainKeyboard);
+    else if (user.role === UserRole.ADMIN) await ctx.reply('Главное меню', adminMainKeyboard);
+    else if (user.role === UserRole.WORKER) await ctx.reply('Главное меню', workerMainKeyboard);
+    else await ctx.reply('Главное меню', userMainKeyboard);
+  };
+
+  bot.context.backToMainMenu = backToMainMenu;
+
   bot.use(session());
   bot.use(stage.middleware());
   bot.use(loggerMiddleware);
   bot.use(authMiddleware(userService));
 
-  // Handlers
   setupCallbackHandlers(bot);
   setupReportHandlers(bot);
   setupAdminActions(bot);
   setupUserManagementHandlers(bot);
 
-  // Вспомогательная функция для возврата в главное меню
-  const backToMainMenu = async (ctx: BotContext) => {
-    const user = ctx.user!;
-    if (user.role === UserRole.SUPER_ADMIN) {
-      await ctx.reply('Главное меню', superAdminMainKeyboard);
-    } else if (user.role === UserRole.ADMIN) {
-      await ctx.reply('Главное меню', {
-        reply_markup: {
-          keyboard: [
-            ['📋 Новая заявка', '📊 Журнал заявок'],
-            ['👥 Сотрудники', '📈 Статистика'],
-            ['📊 Отчеты', '⚙️ Настройки'],
-            ['🔙 Главное меню'],
-          ],
-          resize_keyboard: true,
-        },
-      });
-    } else if (user.role === UserRole.WORKER) {
-      await ctx.reply('Главное меню', workerMainKeyboard);
-    } else {
-      await ctx.reply('Главное меню', userMainKeyboard);
-    }
-  };
-
-  // /start
   bot.command('start', async (ctx) => {
     const user = ctx.user!;
-
-    if (user.role === UserRole.SUPER_ADMIN) {
-      await ctx.reply(
-        `Добро пожаловать, ${user.firstName}!\n` +
-          `ТОО "Окжетпес-Т"\n` +
-          `Роль: Супер-админ 👑\n\n` +
-          `📋 Новая заявка — создать заявку\n` +
-          `📊 Журнал заявок — просмотр всех заявок\n` +
-          `👥 Пользователи — управление ролями\n` +
-          `👑 Админы — список админов\n` +
-          `📊 Отчеты — отчеты по сотрудникам\n` +
-          `⚙️ Настройки — перезагрузка, система`,
-        superAdminMainKeyboard,
-      );
-    } else if (user.role === UserRole.ADMIN) {
-      await ctx.reply(
-        `Добро пожаловать, ${user.firstName}!\n` +
-          `ТОО "Окжетпес-Т"\n` +
-          `Роль: Администратор\n\n` +
-          `📋 Новая заявка — создать заявку\n` +
-          `📊 Журнал заявок — просмотр всех заявок\n` +
-          `👥 Сотрудники — список сотрудников\n` +
-          `📈 Статистика — общая статистика\n` +
-          `📊 Отчеты — отчеты по сотрудникам\n` +
-          `⚙️ Настройки — перезагрузка, система`,
-        {
-          reply_markup: {
-            keyboard: [
-              ['📋 Новая заявка', '📊 Журнал заявок'],
-              ['👥 Сотрудники', '📈 Статистика'],
-              ['📊 Отчеты', '⚙️ Настройки'],
-            ],
-            resize_keyboard: true,
-          },
-        },
-      );
-    } else if (user.role === UserRole.WORKER) {
-      await ctx.reply(
-        `Добро пожаловать, ${user.firstName}!\n` +
-          `ТОО "Окжетпес-Т"\n` +
-          `Роль: Сотрудник тех.службы\n\n` +
-          `📋 Мои заявки — активные заявки\n` +
-          `✅ Завершенные — выполненные заявки\n` +
-          `📊 Моя статистика — личная статистика`,
-        workerMainKeyboard,
-      );
-    } else {
-      await ctx.reply(
-        `Добро пожаловать, ${user.firstName}!\n` +
-          `ТОО "Окжетпес-Т"\n\n` +
-          `📝 Подать заявку — сообщить о проблеме\n` +
-          `📋 Мои заявки — статус моих заявок`,
-        userMainKeyboard,
-      );
-    }
+    if (user.role === UserRole.SUPER_ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Супер-админ 👑`, superAdminMainKeyboard);
+    else if (user.role === UserRole.ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Администратор`, adminMainKeyboard);
+    else if (user.role === UserRole.WORKER) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Сотрудник тех.службы`, workerMainKeyboard);
+    else await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\n\n📝 Подать заявку\n📋 Мои заявки`, userMainKeyboard);
   });
 
-  // 🔙 Главное меню — возврат в свою панель
-  bot.hears('🔙 Главное меню', async (ctx) => {
-    await ctx.scene.leave();
-    await backToMainMenu(ctx);
+  bot.hears('🔙 Главное меню', async (ctx) => { await ctx.scene.leave(); await backToMainMenu(ctx); });
+  bot.hears('📋 Новая заявка', async (ctx) => { await ctx.scene.enter('create_ticket'); });
+  bot.hears('📝 Подать заявку', async (ctx) => { await ctx.scene.enter('create_user_ticket'); });
+
+  // Журнал — текущий день + кнопка "В архив"
+  bot.hears('📊 Журнал заявок', async (ctx) => {
+    try {
+      const repo = new TicketRepository();
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+      const tickets = await repo.findAll({
+        status: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.UNRESOLVED],
+        dateFrom: today, dateTo: tomorrow,
+      });
+      if (tickets.length === 0) { await ctx.reply('📊 Нет заявок за сегодня'); return; }
+      const emoji: Record<string, string> = { new: '🆕', assigned: '📌', in_progress: '🔧', resolved: '✅', unresolved: '❌', completed: '🏁', cancelled: '🚫' };
+      for (const ticket of tickets.slice(0, 10)) {
+        const a = (ticket.assignedTo as any)?.firstName || 'Не назначен';
+        const al = (ticket.assignedTo as any)?.lastName || '';
+        const an = a !== 'Не назначен' ? `${a} ${al}` : a;
+        const msg = `${emoji[ticket.status]} #${ticket.number} - ${ticket.title}\n👤 ${an}\n📅 ${ticket.createdAt.toLocaleDateString()}\n📞 ${(ticket as any).phone || 'Не указан'}\n`;
+        const btns = [[{ text: '👤 Назначить/Переназначить', callback_data: `assign_ticket_${ticket._id}` }]];
+        if ((ticket as any).media?.length) btns.push([{ text: '📎 Вложения', callback_data: `view_media_${ticket._id}` }]);
+        btns.push([{ text: '📦 В архив', callback_data: `archive_ticket_${ticket._id}` }]);
+        await ctx.reply(msg, { reply_markup: { inline_keyboard: btns } });
+      }
+    } catch (e) { await ctx.reply('❌ Ошибка'); }
   });
 
-  // Админ/Супер-админ: Новая заявка
-  bot.hears('📋 Новая заявка', async (ctx) => {
-    await ctx.scene.enter('create_ticket');
+  // Отправить в архив вручную
+  bot.action(/^archive_ticket_(.+)$/, async (ctx) => {
+    const ticketId = (ctx as any).match[1];
+    try {
+      const ticket = await ctx.ticketService.archiveTicket(ticketId);
+      await ctx.reply(`✅ Заявка #${ticket.number} перемещена в архив`);
+    } catch (e: any) { await ctx.reply(`❌ ${e.message}`); }
+    await ctx.answerCbQuery();
   });
 
-  // User: Подать заявку
-  bot.hears('📝 Подать заявку', async (ctx) => {
-    await ctx.scene.enter('create_user_ticket');
+  // Архив
+  bot.hears('📦 Архив заявок', async (ctx) => {
+    try {
+      const repo = new TicketRepository();
+      const tickets = await repo.getArchived({});
+      if (tickets.length === 0) { await ctx.reply('📦 Архив пуст'); return; }
+      let msg = '📦 Архив заявок:\n\n';
+      for (const t of tickets.slice(0, 15)) msg += `#${t.number} - ${t.title}\n📊 ${t.status} | ${t.createdAt.toLocaleDateString()}\n\n`;
+      await ctx.reply(msg);
+    } catch (e) { await ctx.reply('❌ Ошибка'); }
   });
 
-  // Мои заявки (для Worker и User)
+  // Очистить завершенные
+  bot.hears('🧹 Очистить завершенные', async (ctx) => {
+    const user = ctx.user!;
+    if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.ADMIN) { await ctx.reply('Недостаточно прав'); return; }
+    try {
+      const count = await ctx.ticketService.archiveOldTickets(30);
+      await ctx.reply(`✅ Архивировано завершенных: ${count}`);
+    } catch (e) { await ctx.reply('❌ Ошибка'); }
+  });
+
+  bot.action(/^assign_ticket_(.+)$/, async (ctx) => {
+    const ticketId = (ctx as any).match[1];
+    const workers = await ctx.userService.getActiveWorkers();
+    if (workers.length === 0) { await ctx.reply('Нет сотрудников'); await ctx.answerCbQuery(); return; }
+    const repo = new TicketRepository();
+    const ticket = await repo.findById(ticketId);
+    const cur = (ticket as any)?.assignedTo?.firstName ? `Текущий: ${(ticket as any).assignedTo.firstName}` : 'Текущий: не назначен';
+    const btns = workers.map(w => [{ text: `👤 ${w.firstName}`, callback_data: `do_assign_${ticketId}_${(w as any)._id}` }]);
+    await ctx.reply(`${cur}\n\nВыберите:`, { reply_markup: { inline_keyboard: btns } });
+    await ctx.answerCbQuery();
+  });
+
+  bot.action(/^do_assign_(.+)_(.+)$/, async (ctx) => {
+    const [, ticketId, workerId] = (ctx as any).match;
+    try {
+      const ticket = await ctx.ticketService.assignTicket(ticketId, workerId);
+      const worker = await ctx.userService.getUserById(workerId);
+      await ctx.reply(`✅ #${ticket.number} → ${worker.firstName}`);
+      await ctx.telegram.sendMessage(worker.telegramId, `🔔 Заявка #${ticket.number}\n📋 ${ticket.title}\n\nПримите в работу!`);
+    } catch (e: any) { await ctx.reply(`❌ ${e.message}`); }
+    await ctx.answerCbQuery();
+  });
+
+  bot.action(/^view_media_(.+)$/, async (ctx) => {
+    const ticketId = (ctx as any).match[1];
+    const repo = new TicketRepository();
+    const ticket = await repo.findById(ticketId);
+    if (ticket && (ticket as any).media?.length) {
+      await ctx.reply(`📎 Вложения #${ticket.number}:`);
+      for (const fid of (ticket as any).media) {
+        try { await ctx.telegram.sendPhoto(ctx.chat!.id, fid).catch(() => ctx.telegram.sendVideo(ctx.chat!.id, fid).catch(() => ctx.telegram.sendVoice(ctx.chat!.id, fid).catch(() => ctx.telegram.sendAudio(ctx.chat!.id, fid).catch(() => ctx.telegram.sendDocument(ctx.chat!.id, fid))))); } catch {}
+      }
+    } else { await ctx.reply('Нет вложений'); }
+    await ctx.answerCbQuery();
+  });
+
   bot.hears('📋 Мои заявки', async (ctx) => {
     const user = ctx.user!;
-
     if (user.role === UserRole.WORKER) {
-      try {
-        const tickets = await ctx.ticketService.getActiveTicketsForWorker(user._id.toString());
-
-        if (tickets.length === 0) {
-          await ctx.reply('✅ У вас нет активных заявок');
-          return;
-        }
-
-        await ctx.reply(`📋 Активных заявок: ${tickets.length}`);
-
-        for (const ticket of tickets) {
-          await ctx.reply(
-            `📋 Заявка #${ticket.number}\n` +
-              `📝 ${ticket.title}\n` +
-              `📄 ${ticket.description}\n` +
-              `📊 Статус: ${ticket.status}\n` +
-              `📂 Категория: ${ticket.category}`,
-            {
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    { text: '🔧 В работу', callback_data: `status_${ticket._id}_in_progress` },
-                    { text: '✅ Решено', callback_data: `status_${ticket._id}_resolved` },
-                  ],
-                  [
-                    { text: '❌ Не решено', callback_data: `status_${ticket._id}_unresolved` },
-                  ],
-                ],
-              },
-            },
-          );
-        }
-      } catch (error) {
-        logger.error('Error loading worker tickets:', error);
-        await ctx.reply('❌ Ошибка при загрузке заявок');
+      const tickets = await ctx.ticketService.getActiveTicketsForWorker((user as any)._id.toString());
+      if (!tickets.length) { await ctx.reply('✅ Нет активных заявок'); return; }
+      for (const t of tickets) {
+        await ctx.reply(`📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${(t as any).phone || ''}\n📊 ${t.status}`, {
+          reply_markup: { inline_keyboard: [[{ text: '🔧 В работу', callback_data: `status_${t._id}_in_progress` }, { text: '✅ Решено', callback_data: `status_${t._id}_resolved` }], [{ text: '❌ Не решено', callback_data: `status_${t._id}_unresolved` }]] },
+        });
       }
       return;
     }
-
-    // Обычный пользователь
-    try {
-      const { TicketRepository } = await import('../repositories');
-      const repo = new TicketRepository();
-      const tickets = await repo.findAll({ createdBy: user._id.toString() });
-
-      if (tickets.length === 0) {
-        await ctx.reply('У вас пока нет заявок');
-        return;
-      }
-
-      const statusEmoji: Record<string, string> = {
-        new: '🆕',
-        assigned: '📌',
-        in_progress: '🔧',
-        resolved: '✅',
-        unresolved: '❌',
-        completed: '🏁',
-        cancelled: '🚫',
-      };
-
-      let message = '📋 Ваши заявки:\n\n';
-      for (const ticket of tickets.slice(0, 10)) {
-        const assignedTo = (ticket.assignedTo as any)?.firstName || 'Не назначен';
-        message +=
-          `${statusEmoji[ticket.status]} #${ticket.number} - ${ticket.title}\n` +
-          `👤 Исполнитель: ${assignedTo}\n` +
-          `📊 ${ticket.status} | ${ticket.createdAt.toLocaleDateString()}\n\n`;
-      }
-
-      await ctx.reply(message);
-    } catch (error) {
-      logger.error('Error loading user tickets:', error);
-      await ctx.reply('❌ Ошибка при загрузке заявок');
-    }
+    const repo = new TicketRepository();
+    const tickets = await repo.findAll({ createdBy: (user as any)._id.toString() });
+    if (!tickets.length) { await ctx.reply('Нет заявок'); return; }
+    const emoji: Record<string, string> = { new: '🆕', assigned: '📌', in_progress: '🔧', resolved: '✅', unresolved: '❌', completed: '🏁', cancelled: '🚫' };
+    let msg = '📋 Ваши заявки:\n\n';
+    for (const t of tickets.slice(0, 10)) msg += `${emoji[t.status]} #${t.number} - ${t.title}\n👤 ${(t.assignedTo as any)?.firstName || 'Не назначен'}\n\n`;
+    await ctx.reply(msg);
   });
 
-  // Журнал заявок
-  bot.hears('📊 Журнал заявок', async (ctx) => {
-    try {
-      const { TicketRepository } = await import('../repositories');
-      const repo = new TicketRepository();
-      const tickets = await repo.findAll({
-        status: [
-          TicketStatus.NEW,
-          TicketStatus.ASSIGNED,
-          TicketStatus.IN_PROGRESS,
-          TicketStatus.RESOLVED,
-          TicketStatus.UNRESOLVED,
-        ],
-      });
-
-      if (tickets.length === 0) {
-        await ctx.reply('📊 Нет активных заявок');
-        return;
-      }
-
-      const statusEmoji: Record<string, string> = {
-        new: '🆕',
-        assigned: '📌',
-        in_progress: '🔧',
-        resolved: '✅',
-        unresolved: '❌',
-        completed: '🏁',
-        cancelled: '🚫',
-      };
-
-      let message = '📊 Журнал заявок:\n\n';
-      for (const ticket of tickets.slice(0, 10)) {
-        const assignedTo = (ticket.assignedTo as any)?.firstName || 'Не назначен';
-        message +=
-          `${statusEmoji[ticket.status]} #${ticket.number} - ${ticket.title}\n` +
-          `👤 ${assignedTo} | ${ticket.createdAt.toLocaleDateString()}\n\n`;
-      }
-
-      await ctx.reply(message);
-    } catch (error) {
-      logger.error('Error loading journal:', error);
-      await ctx.reply('❌ Ошибка при загрузке журнала');
-    }
-  });
-
-  // Сотрудники
   bot.hears('👥 Сотрудники', async (ctx) => {
-    try {
-      const workers = await ctx.userService.getActiveWorkers();
-      if (workers.length === 0) {
-        await ctx.reply('Нет активных сотрудников');
-        return;
-      }
-      let message = '👥 Список сотрудников:\n\n';
-      workers.forEach((w, i) => {
-        message += `${i + 1}. ${w.firstName} ${w.lastName || ''}\n`;
-        message += `   Отдел: ${w.department || 'Не указан'}\n\n`;
-      });
-      await ctx.reply(message);
-    } catch (error) {
-      logger.error('Error loading workers:', error);
-      await ctx.reply('❌ Ошибка при загрузке сотрудников');
-    }
+    const w = await ctx.userService.getActiveWorkers();
+    if (!w.length) { await ctx.reply('Нет сотрудников'); return; }
+    let m = '👥 Сотрудники:\n\n';
+    w.forEach((x, i) => m += `${i + 1}. ${x.firstName} ${(x as any).lastName || ''}\n   ${(x as any).department || ''}\n\n`);
+    await ctx.reply(m);
   });
 
-  // Статистика
   bot.hears('📈 Статистика', async (ctx) => {
-    try {
-      const stats = await ctx.ticketService.getStats();
-      const message =
-        '📈 Статистика заявок:\n\n' +
-        `🆕 Новые: ${stats.new}\n` +
-        `📌 Назначенные: ${stats.assigned}\n` +
-        `🔧 В работе: ${stats.inProgress}\n` +
-        `✅ Решенные: ${stats.resolved}\n` +
-        `🏁 Завершенные: ${stats.completed}\n` +
-        `🚫 Отмененные: ${stats.cancelled}\n` +
-        `📊 Всего: ${stats.total}`;
-      await ctx.reply(message);
-    } catch (error) {
-      logger.error('Error loading stats:', error);
-      await ctx.reply('❌ Ошибка при загрузке статистики');
-    }
+    const s = await ctx.ticketService.getStats();
+    await ctx.reply(`📈 Статистика:\n\n🆕 ${s.new}\n📌 ${s.assigned}\n🔧 ${s.inProgress}\n✅ ${s.resolved}\n🏁 ${s.completed}\n🚫 ${s.cancelled}\n📊 Всего: ${s.total}`);
   });
 
-  // Worker: Завершенные
   bot.hears('✅ Завершенные', async (ctx) => {
-    try {
-      const user = ctx.user!;
-      const { TicketRepository } = await import('../repositories');
-      const repo = new TicketRepository();
-      const tickets = await repo.findByAssignee(user._id.toString(), [
-        TicketStatus.RESOLVED,
-        TicketStatus.COMPLETED,
-      ]);
-      if (tickets.length === 0) {
-        await ctx.reply('Нет завершенных заявок');
-        return;
-      }
-      let message = '✅ Завершенные заявки:\n\n';
-      for (const ticket of tickets.slice(0, 10)) {
-        message += `#${ticket.number} - ${ticket.title}\n${ticket.updatedAt.toLocaleDateString()}\n\n`;
-      }
-      await ctx.reply(message);
-    } catch (error) {
-      logger.error('Error loading completed tickets:', error);
-      await ctx.reply('❌ Ошибка при загрузке');
-    }
+    const u = ctx.user!;
+    const repo = new TicketRepository();
+    const t = await repo.findByAssignee((u as any)._id.toString(), [TicketStatus.RESOLVED, TicketStatus.COMPLETED]);
+    if (!t.length) { await ctx.reply('Нет завершенных'); return; }
+    let m = '✅ Завершенные:\n\n';
+    t.slice(0, 10).forEach(x => m += `#${x.number} - ${x.title}\n${x.updatedAt.toLocaleDateString()}\n\n`);
+    await ctx.reply(m);
   });
 
-  // Worker: Моя статистика
   bot.hears('📊 Моя статистика', async (ctx) => {
-    try {
-      const user = ctx.user!;
-      const allTickets = await ctx.ticketService.getJournal({ assignedTo: user._id.toString() });
-      let active = 0;
-      let completed = 0;
-      allTickets.forEach((t) => {
-        if (t.status === TicketStatus.RESOLVED || t.status === TicketStatus.COMPLETED) {
-          completed++;
-        } else if (t.status !== TicketStatus.CANCELLED) {
-          active++;
-        }
-      });
-      await ctx.reply(
-        `📊 Ваша статистика:\n\n` +
-          `📋 Всего заявок: ${allTickets.length}\n` +
-          `🔧 Активных: ${active}\n` +
-          `✅ Завершенных: ${completed}`,
-      );
-    } catch (error) {
-      logger.error('Error loading worker stats:', error);
-      await ctx.reply('❌ Ошибка при загрузке статистики');
-    }
-  });
-
-  // Отмена
-  bot.hears('❌ Отмена', async (ctx) => {
-    await ctx.scene.leave();
-    await backToMainMenu(ctx);
+    const u = ctx.user!;
+    const all = await ctx.ticketService.getJournal({ assignedTo: (u as any)._id.toString() });
+    let a = 0, c = 0;
+    all.forEach(x => { if (x.status === TicketStatus.RESOLVED || x.status === TicketStatus.COMPLETED) c++; else if (x.status !== TicketStatus.CANCELLED) a++; });
+    await ctx.reply(`📊 Статистика:\n\n📋 Всего: ${all.length}\n🔧 Активных: ${a}\n✅ Завершенных: ${c}`);
   });
 
   logger.info('Bot handlers initialized');
