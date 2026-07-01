@@ -9,6 +9,7 @@ import { workerMainKeyboard } from './keyboards';
 import { userMainKeyboard } from './keyboards/user.keyboard';
 import { superAdminMainKeyboard } from './keyboards/superAdmin.keyboard';
 import { adminMainKeyboard } from './keyboards/admin.keyboard';
+import { ticketStatusKeyboard } from './keyboards/ticket.keyboard';
 import { createTicketScene, manageTicketScene, createUserTicketScene } from './scenes';
 import { setupCallbackHandlers } from './handlers';
 import { setupReportHandlers } from './handlers/report.handler';
@@ -62,7 +63,6 @@ export const createBot = (token: string): Telegraf<BotContext> => {
   bot.hears('📋 Новая заявка', async (ctx) => { await ctx.scene.enter('create_ticket'); });
   bot.hears('📝 Подать заявку', async (ctx) => { await ctx.scene.enter('create_user_ticket'); });
 
-  // Журнал — текущий день + кнопка "В архив"
   bot.hears('📊 Журнал заявок', async (ctx) => {
     try {
       const repo = new TicketRepository();
@@ -87,7 +87,6 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     } catch (e) { await ctx.reply('❌ Ошибка'); }
   });
 
-  // Отправить в архив вручную
   bot.action(/^archive_ticket_(.+)$/, async (ctx) => {
     const ticketId = (ctx as any).match[1];
     try {
@@ -97,7 +96,6 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     await ctx.answerCbQuery();
   });
 
-  // Архив
   bot.hears('📦 Архив заявок', async (ctx) => {
     try {
       const repo = new TicketRepository();
@@ -109,7 +107,6 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     } catch (e) { await ctx.reply('❌ Ошибка'); }
   });
 
-  // Очистить завершенные
   bot.hears('🧹 Очистить завершенные', async (ctx) => {
     const user = ctx.user!;
     if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.ADMIN) { await ctx.reply('Недостаточно прав'); return; }
@@ -161,9 +158,17 @@ export const createBot = (token: string): Telegraf<BotContext> => {
       const tickets = await ctx.ticketService.getActiveTicketsForWorker((user as any)._id.toString());
       if (!tickets.length) { await ctx.reply('✅ Нет активных заявок'); return; }
       for (const t of tickets) {
-        await ctx.reply(`📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${(t as any).phone || ''}\n📊 ${t.status}`, {
-          reply_markup: { inline_keyboard: [[{ text: '🔧 В работу', callback_data: `status_${t._id}_in_progress` }, { text: '✅ Решено', callback_data: `status_${t._id}_resolved` }], [{ text: '❌ Не решено', callback_data: `status_${t._id}_unresolved` }]] },
-        });
+        const keyboard = ticketStatusKeyboard(t._id.toString(), t.status as TicketStatus);
+        if (keyboard) {
+          await ctx.reply(
+            `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${(t as any).phone || ''}\n📊 ${t.status}`,
+            { reply_markup: keyboard.reply_markup },
+          );
+        } else {
+          await ctx.reply(
+            `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${(t as any).phone || ''}\n📊 ${t.status}\n\nИзменение статуса недоступно.`,
+          );
+        }
       }
       return;
     }

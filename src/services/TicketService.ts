@@ -41,11 +41,27 @@ export class TicketService {
 
   async updateStatus(ticketId: string, newStatus: TicketStatus, workerId: string): Promise<ITicket> {
     const ticket = await this.getTicketById(ticketId);
+
     if (!ticket.assignedTo) {
-      if (newStatus === TicketStatus.CANCELLED) return await this.ticketRepository.updateStatus(ticketId, newStatus);
+      if (newStatus === TicketStatus.CANCELLED) {
+        return await this.ticketRepository.updateStatus(ticketId, newStatus);
+      }
       throw new ValidationError('Заявка не назначена исполнителю.');
     }
-    if (ticket.assignedTo.toString() !== workerId) throw new ValidationError('Вы не можете менять статус этой заявки.');
+
+    if (!workerId) {
+      throw new ValidationError('Не удалось определить ID работника.');
+    }
+
+    // Работает независимо от того, populated поле или нет
+    const assignedToId = ticket.assignedTo instanceof mongoose.Types.ObjectId
+      ? ticket.assignedTo
+      : (ticket.assignedTo as any)._id;
+
+    if (!assignedToId || !new mongoose.Types.ObjectId(workerId).equals(assignedToId)) {
+      throw new ValidationError('Вы не можете менять статус этой заявки.');
+    }
+
     const transitions: Record<TicketStatus, TicketStatus[]> = {
       [TicketStatus.NEW]: [TicketStatus.ASSIGNED, TicketStatus.CANCELLED],
       [TicketStatus.ASSIGNED]: [TicketStatus.IN_PROGRESS, TicketStatus.CANCELLED],
@@ -55,9 +71,11 @@ export class TicketService {
       [TicketStatus.COMPLETED]: [],
       [TicketStatus.CANCELLED]: [],
     };
+
     if (!transitions[ticket.status as TicketStatus]?.includes(newStatus)) {
       throw new TicketStatusError(`Нельзя перевести из "${ticket.status}" в "${newStatus}"`);
     }
+
     return await this.ticketRepository.updateStatus(ticketId, newStatus);
   }
 
@@ -77,7 +95,7 @@ export class TicketService {
     return await this.ticketRepository.archiveOne(id);
   }
 
-  async archiveOldOpen(daysOld: number = 2): Promise<number> {
+  async archiveOldOpen(daysOld: number = 7): Promise<number> {
     return await this.ticketRepository.archiveOldOpen(daysOld);
   }
 

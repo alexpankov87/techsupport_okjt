@@ -1,6 +1,7 @@
 import { BotContext } from '../middlewares/auth.middleware';
-import { TicketStatus } from '../../models';
+import { TicketStatus, UserRole } from '../../models';
 import { logger } from '../../utils/logger';
+import mongoose from 'mongoose';
 
 export const setupCallbackHandlers = (bot: any): void => {
   bot.action(/^manage_(.+)$/, async (ctx: BotContext) => {
@@ -27,10 +28,14 @@ export const setupCallbackHandlers = (bot: any): void => {
     const ticketId = match[1];
     const newStatus = match[2] as TicketStatus;
     const user = ctx.user!;
-    const workerId = (user as any)._id?.toString() || '';
+
+    const rawId = (user as any)._id ?? (user as any).id;
+    const workerId = rawId instanceof mongoose.Types.ObjectId
+      ? rawId.toHexString()
+      : String(rawId ?? '');
 
     if (!workerId) {
-      await ctx.answerCbQuery('Ошибка: пользователь не найден');
+      await ctx.answerCbQuery('Ошибка: не удалось определить ID');
       return;
     }
 
@@ -38,9 +43,33 @@ export const setupCallbackHandlers = (bot: any): void => {
 
     try {
       const ticket = await ctx.ticketService.updateStatus(ticketId, newStatus, workerId);
-      await ctx.reply(`✅ Статус заявки #${ticket.number}: ${ticket.status}`);
+      await ctx.reply(`Статус заявки #${ticket.number}: ${ticket.status}`);
+
+      // Уведомление админам при взятии в работу
+      if (newStatus === TicketStatus.IN_PROGRESS) {
+        const { UserModel } = await import('../../models');
+        const admins = await UserModel.find({ role: { $in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }, isActive: true });
+        for (const admin of admins) {
+          await ctx.telegram.sendMessage(
+            admin.telegramId,
+            `🔔 Работник взял заявку в работу\n📋 #${ticket.number} - ${ticket.title}\n👤 ${user.firstName || 'Работник'}`,
+          );
+        }
+      }
+
+      // Уведомление админам при решении
+      if (newStatus === TicketStatus.RESOLVED) {
+        const { UserModel } = await import('../../models');
+        const admins = await UserModel.find({ role: { $in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }, isActive: true });
+        for (const admin of admins) {
+          await ctx.telegram.sendMessage(
+            admin.telegramId,
+            `✅ Заявка решена\n📋 #${ticket.number} - ${ticket.title}\n👤 ${user.firstName || 'Работник'}`,
+          );
+        }
+      }
     } catch (error: any) {
-      await ctx.reply(`❌ ${error.message}`);
+      await ctx.reply(`${error.message}`);
       logger.error('Error in status callback:', error);
     }
   });

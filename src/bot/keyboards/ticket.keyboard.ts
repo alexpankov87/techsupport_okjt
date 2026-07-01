@@ -16,41 +16,35 @@ export const workersKeyboard = (workers: Array<{ id: string; name: string }>) =>
   return Markup.inlineKeyboard(buttons);
 };
 
+const STATUS_TRANSITIONS: Record<TicketStatus, { label: string; status: TicketStatus }[]> = {
+  [TicketStatus.NEW]:         [],
+  [TicketStatus.ASSIGNED]:    [
+    { label: '🔧 Взять в работу', status: TicketStatus.IN_PROGRESS },
+    { label: '🚫 Отменить',       status: TicketStatus.CANCELLED },
+  ],
+  [TicketStatus.IN_PROGRESS]: [
+    { label: '✅ Решено',    status: TicketStatus.RESOLVED },
+    { label: '❌ Не решено', status: TicketStatus.UNRESOLVED },
+  ],
+  [TicketStatus.RESOLVED]:    [
+    { label: '🏁 Завершить', status: TicketStatus.COMPLETED },
+  ],
+  [TicketStatus.UNRESOLVED]:  [
+    { label: '🔧 Снова в работу', status: TicketStatus.IN_PROGRESS },
+    { label: '🚫 Отменить',       status: TicketStatus.CANCELLED },
+  ],
+  [TicketStatus.COMPLETED]:   [],
+  [TicketStatus.CANCELLED]:   [],
+};
+
 export const ticketStatusKeyboard = (ticketId: string, currentStatus: TicketStatus) => {
-  const statusMap: Record<TicketStatus, { emoji: string; label: string }> = {
-    [TicketStatus.NEW]: { emoji: '🆕', label: 'Новая' },
-    [TicketStatus.ASSIGNED]: { emoji: '📌', label: 'Назначена' },
-    [TicketStatus.IN_PROGRESS]: { emoji: '🔧', label: 'В работе' },
-    [TicketStatus.RESOLVED]: { emoji: '✅', label: 'Решена' },
-    [TicketStatus.UNRESOLVED]: { emoji: '❌', label: 'Не решена' },
-    [TicketStatus.COMPLETED]: { emoji: '🏁', label: 'Завершена' },
-    [TicketStatus.CANCELLED]: { emoji: '🚫', label: 'Отменена' },
-  };
+  const transitions = STATUS_TRANSITIONS[currentStatus] ?? [];
 
-  const buttons: Array<Array<ReturnType<typeof Markup.button.callback>>> = [];
+  if (transitions.length === 0) return null;
 
-  if (currentStatus === TicketStatus.ASSIGNED) {
-    buttons.push([
-      Markup.button.callback('🔧 Взять в работу', `status_${ticketId}_${TicketStatus.IN_PROGRESS}`),
-    ]);
-  }
-
-  if (currentStatus === TicketStatus.IN_PROGRESS) {
-    buttons.push([
-      Markup.button.callback('✅ Решено', `status_${ticketId}_${TicketStatus.RESOLVED}`),
-      Markup.button.callback('❌ Не решено', `status_${ticketId}_${TicketStatus.UNRESOLVED}`),
-    ]);
-  }
-
-  if (currentStatus === TicketStatus.RESOLVED) {
-    buttons.push([
-      Markup.button.callback('🏁 Завершить', `status_${ticketId}_${TicketStatus.COMPLETED}`),
-    ]);
-  }
-
-  buttons.push([
-    Markup.button.callback('🚫 Отменить', `status_${ticketId}_${TicketStatus.CANCELLED}`),
-  ]);
+  const buttons = transitions.map(({ label, status }) =>
+    [Markup.button.callback(label, `status_${ticketId}_${status}`)],
+  );
 
   return Markup.inlineKeyboard(buttons);
 };
@@ -58,6 +52,6 @@ export const ticketStatusKeyboard = (ticketId: string, currentStatus: TicketStat
 export const ticketDetailsKeyboard = (ticketId: string) => {
   return Markup.inlineKeyboard([
     [Markup.button.callback('🔄 Обновить статус', `manage_${ticketId}`)],
-    [Markup.button.callback('👤 Переназначить', `reassign_${ticketId}`)],
+    [Markup.button.callback('👤 Переназначить',   `reassign_${ticketId}`)],
   ]);
 };
