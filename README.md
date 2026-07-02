@@ -10,26 +10,26 @@ Telegram-бот технической поддержки для ТОО «Окж
 - **MongoDB / Mongoose** — хранение данных
 - **Winston** — логирование
 - **Helmet, CORS** — базовая защита HTTP-слоя
-- **Docker / docker-compose** — контейнеризация и локальный запуск с MongoDB
+- **Docker / docker-compose** — контейнеризация, раздельные dev/prod сборки
 
 ## Возможности
 
 - Приём и обработка обращений пользователей в Telegram
 - Хранение заявок и сопутствующих данных в MongoDB
 - Структурированное логирование через Winston
-- Готовая Docker-сборка для деплоя
-
+- Готовая Docker-сборка для деплоя (multi-stage: dev / production)
 
 ## Требования
 
 - Node.js 20+
 - MongoDB 7+ (или Docker, чтобы не ставить локально)
+- Docker и Docker Compose (для контейнерного запуска)
 - Токен Telegram-бота, полученный у [@BotFather](https://t.me/BotFather)
 
 ## Установка
 
 ```bash
-git clone https://github.com/alexpankov87/techsupport_okjt.git
+git clone <адрес_репозитория>
 cd techsupport_okjt
 npm install
 ```
@@ -46,9 +46,9 @@ MONGODB_URI=mongodb://localhost:27017/techsupport_okjt
 
 При запуске через `docker-compose` переменная `MONGODB_URI` уже зашита на адрес контейнера `mongo`, и в `.env` для compose-сценария реально нужен только `BOT_TOKEN`.
 
-## Запуск
+## Запуск локально без Docker
 
-### Локально, в режиме разработки
+### Режим разработки
 
 ```bash
 npm run dev
@@ -63,25 +63,46 @@ npm run build   # компилирует TypeScript в dist/
 npm start       # запускает dist/app.js
 ```
 
-### Через Docker Compose (рекомендуется)
+## Docker
 
-Поднимает бота вместе с MongoDB одной командой:
+Проект использует multi-stage `Dockerfile` с двумя таргетами:
+
+- **`dev`** — полные зависимости, hot reload через `npm run dev`, исходники монтируются с хоста
+- **`production`** — только `dist/` и production-зависимости, без TypeScript и dev-инструментов, запуск от непривилегированного пользователя `node`
+
+### Локальная разработка (hot reload)
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+Остановить:
+```bash
+docker compose -f docker-compose.dev.yml down
+```
+
+Что внутри `docker-compose.dev.yml`:
+- контейнер `bot` собирается из таргета `dev`, монтирует текущую папку внутрь контейнера — изменения в коде подхватываются на лету
+- контейнер `mongo` с портом `27017`, проброшенным на хост, для удобного локального доступа
+
+### Продакшен-сборка
 
 ```bash
 docker compose up -d --build
 ```
 
-Что внутри:
-
-- `bot` — контейнер с приложением, собирается из `Dockerfile`, читает `BOT_TOKEN` из окружения хоста
+Что внутри `docker-compose.yml` (prod):
+- `bot` — собирается из таргета `production`, содержит только скомпилированный `dist/` и runtime-зависимости
 - `mongo` — контейнер MongoDB 7 с volume `mongo_data` для персистентного хранения данных
-- логи приложения пробрасываются на хост в `./logs`
+- оба сервиса имеют `restart: always` — автоматически поднимаются после перезапуска Docker/сервера
 
-Перед запуском убедитесь, что `BOT_TOKEN` доступен в окружении (например, в `.env` рядом с `docker-compose.yml` — Docker Compose подхватывает его автоматически):
+Перед запуском убедитесь, что `BOT_TOKEN` доступен — например, через `.env` рядом с `docker-compose.yml` (Docker Compose подхватывает его автоматически):
 
 ```bash
 docker compose logs -f bot   # посмотреть логи бота
-docker compose down          # остановить
+docker compose ps            # статус контейнеров
+docker compose down          # остановить всё
+docker compose restart bot   # перезапустить только бота
 ```
 
 ### Через PM2 (без Docker, на сервере)
@@ -93,16 +114,51 @@ npm run build
 npx pm2 start ecosystem.config.js
 ```
 
+## Деплой на сервер — краткая инструкция
+
+1. Установить Docker и Docker Compose на сервере:
+   ```bash
+   curl -fsSL https://get.docker.com | sh
+   sudo apt install docker-compose-plugin -y
+   ```
+2. Склонировать репозиторий в рабочую директорию:
+   ```bash
+   git clone <адрес_репозитория> techsupport_okjt
+   cd techsupport_okjt
+   ```
+3. Создать `.env` с боевым токеном бота:
+   ```bash
+   echo "BOT_TOKEN=ваш_боевой_токен" > .env
+   ```
+4. Собрать и запустить prod-контейнеры:
+   ```bash
+   docker compose up -d --build
+   ```
+5. Проверить логи и статус:
+   ```bash
+   docker compose logs -f bot
+   docker compose ps
+   ```
+
+### Обновление бота на сервере (без даунтайма Mongo)
+
+```bash
+git pull
+docker compose up -d --build bot
+```
+
 ## Структура проекта
 
 ```
 techsupport_okjt/
-├── src/                  # исходный код приложения
-├── dist/                 # скомпилированный JS (генерируется при build)
-├── logs/                 # логи приложения
-├── Dockerfile
-├── docker-compose.yml
-├── ecosystem.config.js   # конфиг для PM2
+├── src/                     # исходный код приложения
+├── dist/                    # скомпилированный JS (генерируется при build)
+├── logs/                    # логи приложения
+├── Dockerfile               # multi-stage: dev / builder / production
+├── docker-compose.yml       # продакшен-сборка
+├── docker-compose.dev.yml   # локальная разработка с hot reload
+├── .dockerignore
+├── ecosystem.config.js      # конфиг для PM2
 ├── tsconfig.json
 └── package.json
 ```
