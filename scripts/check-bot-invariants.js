@@ -46,4 +46,22 @@ const repo = read('src/repositories/TicketRepository.ts');
 if (!repo.includes('resolvedFrom') || !repo.includes('resolvedTo')) fail('TicketRepository missing resolvedAt filters');
 else ok('resolvedAt filters in repository');
 
+const userModel = read('src/models/User.model.ts');
+if (!userModel.includes('phone')) fail('User model missing phone field');
+else ok('user phone field present');
+
+const phoneUtil = read('src/bot/utils/phone.ts');
+if (!phoneUtil.includes('resolveUserPhone')) fail('resolveUserPhone helper missing');
+else ok('phone auto-fill helper present');
+
+for (const file of ['src/bot/scenes/createTicket.scene.ts', 'src/bot/scenes/createUserTicket.scene.ts']) {
+  const src = read(file);
+  if (!src.includes('resolveUserPhone') || !src.includes('selectStep(4)')) fail(`${file} must skip phone step when known`);
+  else ok(`${path.basename(file)} skips phone when cached`);
+}
+
+const userMgmt = read('src/bot/handlers/userManagement.handler.ts');
+if (!userMgmt.includes('📞 Телефон:')) fail('user list must show phone');
+else ok('user list shows phone');
+
 if (failed) process.exit(1);

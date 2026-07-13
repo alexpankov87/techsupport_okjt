@@ -71,6 +71,12 @@ export class UserService {
     return user;
   }
 
+  async savePhone(userId: string, phone: string): Promise<IUser> {
+    const normalized = phone.trim();
+    if (!normalized) throw new ValidationError('Укажите номер телефона');
+    return this.userRepository.update(userId, { phone: normalized });
+  }
+
   async deactivateUser(id: string, deactivatedBy: IUser): Promise<void> {
     if (deactivatedBy.role !== UserRole.ADMIN && deactivatedBy.role !== UserRole.SUPER_ADMIN) {
       throw new ValidationError('Недостаточно прав');

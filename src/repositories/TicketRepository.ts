@@ -38,6 +38,16 @@ export class TicketRepository {
       .populate('assignedTo', 'firstName lastName');
   }
 
+  async findLastPhoneByCreator(userId: string): Promise<string | undefined> {
+    const ticket = await TicketModel.findOne({
+      createdBy: new mongoose.Types.ObjectId(userId),
+      phone: { $exists: true, $nin: [null, ''] },
+    })
+      .sort({ createdAt: -1 })
+      .select('phone');
+    return ticket?.phone?.trim() || undefined;
+  }
+
   async findByAssignee(userId: string, status?: TicketStatus[]): Promise<ITicket[]> {
     const query: any = { assignedTo: new mongoose.Types.ObjectId(userId), archived: { $ne: true } };
     if (status && status.length > 0) query.status = { $in: status };

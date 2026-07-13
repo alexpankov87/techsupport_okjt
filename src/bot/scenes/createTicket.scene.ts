@@ -4,6 +4,7 @@ import { TicketCategory, IUser, UserRole } from '../../models';
 import { categoryKeyboard, workersKeyboard } from '../keyboards';
 import { logger } from '../../utils/logger';
 import { finishScene } from '../utils/scene';
+import { promptMediaStep, resolveUserPhone } from '../utils/phone';
 
 interface CreateTicketState {
   title?: string;
@@ -44,18 +45,27 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
 
   async (ctx) => {
     if (!ctx.message || !('text' in ctx.message)) return;
-    (ctx.scene.state as CreateTicketState).description = ctx.message.text;
+    const state = ctx.scene.state as CreateTicketState;
+    state.description = ctx.message.text;
+
+    const phone = await resolveUserPhone(ctx);
+    if (phone) {
+      state.phone = phone;
+      await promptMediaStep(ctx, phone);
+      return ctx.wizard.selectStep(4);
+    }
+
     await ctx.reply('📞 Введите номер телефона для связи:');
     return ctx.wizard.next();
   },
 
   async (ctx) => {
     if (!ctx.message || !('text' in ctx.message)) return;
-    (ctx.scene.state as CreateTicketState).phone = ctx.message.text;
-    await ctx.reply(
-      '📎 Прикрепите фото, видео, голосовое, аудио или документ (или нажмите "Пропустить"):',
-      Markup.keyboard([['⏭ Пропустить', '❌ Отмена']]).resize(),
-    );
+    const state = ctx.scene.state as CreateTicketState;
+    state.phone = ctx.message.text.trim();
+    const userId = await getUserId(ctx);
+    if (userId) await ctx.userService.savePhone(userId, state.phone);
+    await promptMediaStep(ctx, state.phone);
     return ctx.wizard.next();
   },
 

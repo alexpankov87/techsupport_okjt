@@ -15,6 +15,7 @@ import { setupCallbackHandlers } from './handlers';
 import { setupReportHandlers } from './handlers/report.handler';
 import { setupAdminActions } from './handlers/admin.handler';
 import { setupUserManagementHandlers } from './handlers/userManagement.handler';
+import { formatUserPhone } from './utils/phone';
 
 export const createBot = (token: string): Telegraf<BotContext> => {
   const bot = new Telegraf<BotContext>(token);
@@ -212,7 +213,12 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     const w = await ctx.userService.getActiveWorkers();
     if (!w.length) { await ctx.reply('Нет сотрудников'); return; }
     let m = '👥 Сотрудники:\n\n';
-    w.forEach((x, i) => m += `${i + 1}. ${x.firstName} ${(x as any).lastName || ''}\n   ${(x as any).department || ''}\n\n`);
+    for (let i = 0; i < w.length; i++) {
+      const x = w[i];
+      let phone = x.phone;
+      if (!phone) phone = await ctx.ticketService.getLastPhoneForUser((x as any)._id.toString());
+      m += `${i + 1}. ${x.firstName} ${(x as any).lastName || ''}\n   🆔 ${x.telegramId} | 📞 ${formatUserPhone(phone)}\n   ${(x as any).department || ''}\n\n`;
+    }
     await ctx.reply(m);
   });
 

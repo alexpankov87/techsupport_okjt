@@ -35,6 +35,10 @@ export class TicketService {
     return await this.ticketRepository.findAll(filters);
   }
 
+  async getLastPhoneForUser(userId: string): Promise<string | undefined> {
+    return this.ticketRepository.findLastPhoneByCreator(userId);
+  }
+
   async getArchived(filters?: TicketFilters): Promise<ITicket[]> {
     return await this.ticketRepository.getArchived(filters);
   }

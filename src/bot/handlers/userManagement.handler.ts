@@ -1,9 +1,12 @@
 import { BotContext } from '../middlewares/auth.middleware';
 import { UserService } from '../../services/UserService';
 import { UserRepository } from '../../repositories/UserRepository';
+import { TicketRepository } from '../../repositories/TicketRepository';
+import { TicketService } from '../../services/TicketService';
 import { UserRole, IUser } from '../../models';
 import { userManagementKeyboard } from '../keyboards/superAdmin.keyboard';
 import { logger } from '../../utils/logger';
+import { formatUserPhone } from '../utils/phone';
 
 export const setupUserManagementHandlers = (bot: any): void => {
   bot.hears('👥 Пользователи', async (ctx: BotContext) => {
@@ -13,6 +16,7 @@ export const setupUserManagementHandlers = (bot: any): void => {
     try {
       const userRepo = new UserRepository();
       const userService = new UserService(userRepo);
+      const ticketService = new TicketService(new TicketRepository());
       const users = await userService.getAllUsers();
 
       if (users.length === 0) {
@@ -27,10 +31,13 @@ export const setupUserManagementHandlers = (bot: any): void => {
           worker: '🔧 Работник',
           user: '👤 Пользователь',
         };
+        let phone = u.phone;
+        if (!phone) phone = await ticketService.getLastPhoneForUser(u._id.toString());
 
         await ctx.reply(
           `👤 ${u.firstName} ${u.lastName || ''}\n` +
             `🆔 ID: ${u.telegramId}\n` +
+            `📞 Телефон: ${formatUserPhone(phone)}\n` +
             `📌 Роль: ${roleLabel[u.role] || 'Не назначена'}\n` +
             `🟢 Активен: ${u.isActive ? 'Да' : 'Нет'}`,
           userManagementKeyboard(u),
@@ -49,6 +56,7 @@ export const setupUserManagementHandlers = (bot: any): void => {
     try {
       const userRepo = new UserRepository();
       const userService = new UserService(userRepo);
+      const ticketService = new TicketService(new TicketRepository());
       const admins = await userService.getAdmins();
 
       if (admins.length === 0) {
@@ -58,7 +66,9 @@ export const setupUserManagementHandlers = (bot: any): void => {
 
       let message = '👑 Список админов:\n\n';
       for (const admin of admins) {
-        message += `• ${admin.firstName} ${admin.lastName || ''} (ID: ${admin.telegramId})\n`;
+        let phone = admin.phone;
+        if (!phone) phone = await ticketService.getLastPhoneForUser(admin._id.toString());
+        message += `• ${admin.firstName} ${admin.lastName || ''} (ID: ${admin.telegramId}, 📞 ${formatUserPhone(phone)})\n`;
       }
 
       await ctx.reply(message);
