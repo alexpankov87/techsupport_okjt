@@ -80,7 +80,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
         const a = (ticket.assignedTo as any)?.firstName || 'Не назначен';
         const al = (ticket.assignedTo as any)?.lastName || '';
         const an = a !== 'Не назначен' ? `${a} ${al}` : a;
-        const msg = `${emoji[ticket.status]} #${ticket.number} - ${ticket.title}\n👤 ${an}\n📅 ${ticket.createdAt.toLocaleDateString()}\n📞 ${(ticket as any).phone || 'Не указан'}\n`;
+        const msg = `${emoji[ticket.status]} #${ticket.number} - ${ticket.title}\n👤 ${an}\n📅 ${ticket.createdAt.toLocaleDateString()}\n📞 ${ctx.ticketService.displayPhone(ticket)}\n`;
         const btns = [[{ text: '👤 Назначить/Переназначить', callback_data: `assign_ticket_${ticket._id}` }]];
         if ((ticket as any).media?.length) btns.push([{ text: '📎 Вложения', callback_data: `view_media_${ticket._id}` }]);
         btns.push([{ text: '📦 В архив', callback_data: `archive_ticket_${ticket._id}` }]);
@@ -109,7 +109,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
       for (const t of tickets.slice(0, 15)) {
         const w = (t.assignedTo as any)?.firstName || 'Не назначен';
         const wl = (t.assignedTo as any)?.lastName || '';
-        msg += `#${t.number} - ${t.title}\n👤 ${w} ${wl}\n📞 ${(t as any).phone || 'Не указан'}\n🕐 ${t.resolvedAt?.toLocaleTimeString() || '—'}\n\n`;
+        msg += `#${t.number} - ${t.title}\n👤 ${w} ${wl}\n📞 ${ctx.ticketService.displayPhone(t)}\n🕐 ${t.resolvedAt?.toLocaleTimeString() || '—'}\n\n`;
       }
       await ctx.reply(msg);
     } catch (e) { await ctx.reply('❌ Ошибка'); }
@@ -189,7 +189,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
         const keyboard = ticketStatusKeyboard(t._id.toString(), t.status as TicketStatus);
         if (keyboard) {
           await ctx.reply(
-            `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${(t as any).phone || ''}\n📊 ${t.status}`,
+            `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${ctx.ticketService.displayPhone(t)}\n📊 ${t.status}`,
             { reply_markup: keyboard.reply_markup },
           );
         } else {

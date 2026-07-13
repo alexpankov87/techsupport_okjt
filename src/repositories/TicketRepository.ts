@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { TicketModel, ITicket, TicketStatus } from '../models';
 import { NotFoundError } from '../utils/errors';
 import { logger } from '../utils/logger';
+import { isValidPhone } from '../utils/phone';
 
 export interface TicketFilters {
   status?: TicketStatus[];
@@ -28,24 +29,36 @@ export interface TicketStats {
 export class TicketRepository {
   async findById(id: string): Promise<ITicket | null> {
     return await TicketModel.findById(id)
-      .populate('createdBy', 'firstName lastName')
+      .populate('createdBy', 'firstName lastName phone')
       .populate('assignedTo', 'firstName lastName');
   }
 
   async findByNumber(number: string): Promise<ITicket | null> {
     return await TicketModel.findOne({ number })
-      .populate('createdBy', 'firstName lastName')
+      .populate('createdBy', 'firstName lastName phone')
       .populate('assignedTo', 'firstName lastName');
   }
 
   async findLastPhoneByCreator(userId: string): Promise<string | undefined> {
-    const ticket = await TicketModel.findOne({
+    const tickets = await TicketModel.find({
       createdBy: new mongoose.Types.ObjectId(userId),
       phone: { $exists: true, $nin: [null, ''] },
     })
       .sort({ createdAt: -1 })
-      .select('phone');
-    return ticket?.phone?.trim() || undefined;
+      .select('phone')
+      .limit(15);
+    for (const ticket of tickets) {
+      const phone = ticket.phone?.trim();
+      if (isValidPhone(phone)) return phone;
+    }
+    return undefined;
+  }
+
+  async updatePhone(id: string, phone?: string): Promise<ITicket> {
+    const update = phone ? { $set: { phone } } : { $unset: { phone: 1 } };
+    const ticket = await TicketModel.findByIdAndUpdate(id, update, { returnDocument: 'after' });
+    if (!ticket) throw new NotFoundError('Заявка не найдена');
+    return ticket;
   }
 
   async findByAssignee(userId: string, status?: TicketStatus[]): Promise<ITicket[]> {
@@ -69,7 +82,7 @@ export class TicketRepository {
 
     return await TicketModel.find(query)
       .populate('assignedTo', 'firstName lastName')
-      .populate('createdBy', 'firstName lastName')
+      .populate('createdBy', 'firstName lastName phone')
       .sort({ createdAt: -1 })
       .limit(50);
   }
@@ -179,7 +192,7 @@ export class TicketRepository {
     if (filters?.dateTo) query.createdAt = { ...query.createdAt, $lte: filters.dateTo };
     return await TicketModel.find(query)
       .populate('assignedTo', 'firstName lastName')
-      .populate('createdBy', 'firstName lastName')
+      .populate('createdBy', 'firstName lastName phone')
       .sort({ createdAt: -1 })
       .limit(100);
   }

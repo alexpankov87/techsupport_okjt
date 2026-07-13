@@ -2,6 +2,7 @@ import { TicketRepository, TicketFilters } from '../repositories';
 import { ITicket, TicketStatus, TicketCategory } from '../models';
 import { ValidationError, TicketStatusError, NotFoundError } from '../utils/errors';
 import { logger } from '../utils/logger';
+import { isValidPhone, pickPhone } from '../utils/phone';
 import mongoose from 'mongoose';
 
 export class TicketService {
@@ -13,12 +14,43 @@ export class TicketService {
   ): Promise<ITicket> {
     if (!title || !description || !category) throw new ValidationError('Заполните все обязательные поля');
     if (!Object.values(TicketCategory).includes(category as TicketCategory)) throw new ValidationError('Неверная категория');
+    const normalizedPhone = isValidPhone(phone) ? phone!.trim() : undefined;
     return await this.ticketRepository.create({
       title, description, category: category as TicketCategory,
       createdBy: new mongoose.Types.ObjectId(createdBy),
       assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
-      phone, media,
+      phone: normalizedPhone, media,
     });
+  }
+
+  displayPhone(ticket: ITicket): string {
+    const creator = ticket.createdBy as any;
+    const userPhone = typeof creator === 'object' ? creator?.phone : undefined;
+    return pickPhone(ticket.phone, userPhone);
+  }
+
+  async fixInvalidTicketPhones(): Promise<number> {
+    const { UserModel } = await import('../models');
+    const tickets = await this.ticketRepository.findAll({});
+    let fixed = 0;
+    for (const ticket of tickets) {
+      if (isValidPhone(ticket.phone)) continue;
+      const creator = ticket.createdBy as any;
+      const userId = (creator?._id ?? creator)?.toString();
+      if (!userId) continue;
+      const user = await UserModel.findById(userId);
+      let replacement: string | undefined;
+      if (isValidPhone(user?.phone)) replacement = user!.phone!.trim();
+      if (!replacement) replacement = await this.ticketRepository.findLastPhoneByCreator(userId);
+      if (!replacement) {
+        await this.ticketRepository.updatePhone(ticket._id.toString());
+        fixed++;
+        continue;
+      }
+      await this.ticketRepository.updatePhone(ticket._id.toString(), replacement);
+      fixed++;
+    }
+    return fixed;
   }
 
   async getTicketById(id: string): Promise<ITicket> {

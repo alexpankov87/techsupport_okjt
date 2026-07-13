@@ -4,7 +4,8 @@ import { TicketCategory, IUser, UserRole } from '../../models';
 import { categoryKeyboard, workersKeyboard } from '../keyboards';
 import { logger } from '../../utils/logger';
 import { finishScene } from '../utils/scene';
-import { promptMediaStep, resolveUserPhone } from '../utils/phone';
+import { acceptPhoneInput, promptMediaStep, resolveUserPhone } from '../utils/phone';
+import { isValidPhone } from '../../utils/phone';
 
 interface CreateTicketState {
   title?: string;
@@ -61,11 +62,10 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
 
   async (ctx) => {
     if (!ctx.message || !('text' in ctx.message)) return;
-    const state = ctx.scene.state as CreateTicketState;
-    state.phone = ctx.message.text.trim();
-    const userId = await getUserId(ctx);
-    if (userId) await ctx.userService.savePhone(userId, state.phone);
-    await promptMediaStep(ctx, state.phone);
+    const phone = await acceptPhoneInput(ctx, ctx.message.text);
+    if (!phone) return;
+    (ctx.scene.state as CreateTicketState).phone = phone;
+    await promptMediaStep(ctx, phone);
     return ctx.wizard.next();
   },
 

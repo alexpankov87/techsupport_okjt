@@ -64,4 +64,8 @@ const userMgmt = read('src/bot/handlers/userManagement.handler.ts');
 if (!userMgmt.includes('📞 Телефон:')) fail('user list must show phone');
 else ok('user list shows phone');
 
+const phoneCore = read('src/utils/phone.ts');
+if (!phoneCore.includes('isValidPhone')) fail('phone validation missing');
+else ok('phone validation present');
+
 if (failed) process.exit(1);

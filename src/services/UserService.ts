@@ -2,6 +2,7 @@ import { UserRepository } from '../repositories';
 import { IUser, UserRole } from '../models';
 import { UnauthorizedError, NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../utils/logger';
+import { isValidPhone } from '../utils/phone';
 
 export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
@@ -73,7 +74,7 @@ export class UserService {
 
   async savePhone(userId: string, phone: string): Promise<IUser> {
     const normalized = phone.trim();
-    if (!normalized) throw new ValidationError('Укажите номер телефона');
+    if (!isValidPhone(normalized)) throw new ValidationError('Некорректный номер телефона');
     return this.userRepository.update(userId, { phone: normalized });
   }
 

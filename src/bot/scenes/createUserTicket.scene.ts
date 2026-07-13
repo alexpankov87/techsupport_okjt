@@ -4,7 +4,8 @@ import { TicketCategory, UserRole } from '../../models';
 import { categoryKeyboard } from '../keyboards';
 import { logger } from '../../utils/logger';
 import { finishScene } from '../utils/scene';
-import { promptMediaStep, resolveUserPhone } from '../utils/phone';
+import { acceptPhoneInput, promptMediaStep, resolveUserPhone } from '../utils/phone';
+import { isValidPhone } from '../../utils/phone';
 
 interface UserTicketState {
   title?: string;
@@ -50,11 +51,10 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
 
   async (ctx) => {
     if (!ctx.message || !('text' in ctx.message)) return;
-    const state = ctx.scene.state as UserTicketState;
-    state.phone = ctx.message.text.trim();
-    const userId = (ctx.user as any)?._id?.toString();
-    if (userId) await ctx.userService.savePhone(userId, state.phone);
-    await promptMediaStep(ctx, state.phone);
+    const phone = await acceptPhoneInput(ctx, ctx.message.text);
+    if (!phone) return;
+    (ctx.scene.state as UserTicketState).phone = phone;
+    await promptMediaStep(ctx, phone);
     return ctx.wizard.next();
   },
 
@@ -96,6 +96,11 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
 
     const firstName = ctx.from?.first_name || user.firstName || 'Пользователь';
     await ctx.answerCbQuery('Создаю заявку...');
+
+    if (!isValidPhone(state.phone)) {
+      const fallback = await resolveUserPhone(ctx);
+      if (fallback) state.phone = fallback;
+    }
 
     try {
       const ticket = await ctx.ticketService.createTicket(state.title!, state.description!, category, (user as any)._id.toString(), undefined, state.phone, state.media);
