@@ -3,6 +3,7 @@ import { BotContext } from '../middlewares/auth.middleware';
 import { TicketCategory, UserRole } from '../../models';
 import { categoryKeyboard } from '../keyboards';
 import { logger } from '../../utils/logger';
+import { finishScene } from '../utils/scene';
 
 interface UserTicketState {
   title?: string;
@@ -80,7 +81,7 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
 
     if (!user || !(user as any)._id) {
       await ctx.reply('❌ Ошибка: пользователь не найден');
-      return ctx.scene.leave();
+      return finishScene(ctx);
     }
 
     const firstName = ctx.from?.first_name || user.firstName || 'Пользователь';
@@ -105,14 +106,8 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
       logger.error('Error creating user ticket:', error);
     }
 
-    return ctx.scene.leave();
+    return finishScene(ctx);
   },
 );
 
-// Перехват "Отмена" на уровне сцены
-createUserTicketScene.hears(/Отмена/i, async (ctx) => {
-  await ctx.scene.leave();
-  if (ctx.backToMainMenu) {
-    await ctx.backToMainMenu(ctx);
-  }
-});
+createUserTicketScene.hears(/Отмена/i, async (ctx) => finishScene(ctx));

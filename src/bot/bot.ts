@@ -70,7 +70,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
       const tickets = await repo.findAll({
-        status: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.UNRESOLVED],
+        status: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.UNRESOLVED],
         dateFrom: today, dateTo: tomorrow,
       });
       if (tickets.length === 0) { await ctx.reply('📊 Нет заявок за сегодня'); return; }
@@ -85,6 +85,32 @@ export const createBot = (token: string): Telegraf<BotContext> => {
         btns.push([{ text: '📦 В архив', callback_data: `archive_ticket_${ticket._id}` }]);
         await ctx.reply(msg, { reply_markup: { inline_keyboard: btns } });
       }
+    } catch (e) { await ctx.reply('❌ Ошибка'); }
+  });
+
+  bot.hears('✅ Выполнено сегодня', async (ctx) => {
+    const user = ctx.user!;
+    if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.ADMIN && user.role !== UserRole.WORKER) {
+      await ctx.reply('Недостаточно прав');
+      return;
+    }
+    try {
+      const repo = new TicketRepository();
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+      const tickets = await repo.findAll({
+        status: [TicketStatus.RESOLVED],
+        resolvedFrom: today,
+        resolvedTo: tomorrow,
+      });
+      if (tickets.length === 0) { await ctx.reply('✅ Нет решённых заявок за сегодня'); return; }
+      let msg = '✅ Выполнено сегодня:\n\n';
+      for (const t of tickets.slice(0, 15)) {
+        const w = (t.assignedTo as any)?.firstName || 'Не назначен';
+        const wl = (t.assignedTo as any)?.lastName || '';
+        msg += `#${t.number} - ${t.title}\n👤 ${w} ${wl}\n📞 ${(t as any).phone || 'Не указан'}\n🕐 ${t.resolvedAt?.toLocaleTimeString() || '—'}\n\n`;
+      }
+      await ctx.reply(msg);
     } catch (e) { await ctx.reply('❌ Ошибка'); }
   });
 

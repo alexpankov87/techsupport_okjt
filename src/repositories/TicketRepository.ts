@@ -10,6 +10,8 @@ export interface TicketFilters {
   category?: string;
   dateFrom?: Date;
   dateTo?: Date;
+  resolvedFrom?: Date;
+  resolvedTo?: Date;
   archived?: boolean;
 }
 
@@ -52,6 +54,8 @@ export class TicketRepository {
     if (filters?.createdBy) query.createdBy = new mongoose.Types.ObjectId(filters.createdBy);
     if (filters?.dateFrom) query.createdAt = { ...query.createdAt, $gte: filters.dateFrom };
     if (filters?.dateTo) query.createdAt = { ...query.createdAt, $lte: filters.dateTo };
+    if (filters?.resolvedFrom) query.resolvedAt = { ...query.resolvedAt, $gte: filters.resolvedFrom };
+    if (filters?.resolvedTo) query.resolvedAt = { ...query.resolvedAt, $lte: filters.resolvedTo };
 
     return await TicketModel.find(query)
       .populate('assignedTo', 'firstName lastName')

@@ -3,6 +3,7 @@ import { BotContext } from '../middlewares/auth.middleware';
 import { TicketCategory, IUser, UserRole } from '../../models';
 import { categoryKeyboard, workersKeyboard } from '../keyboards';
 import { logger } from '../../utils/logger';
+import { finishScene } from '../utils/scene';
 
 interface CreateTicketState {
   title?: string;
@@ -92,7 +93,7 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
     try {
       const workers = await ctx.userService.getActiveWorkers();
       const userId = await getUserId(ctx);
-      if (!userId) { await ctx.reply('❌ Пользователь не найден'); return ctx.scene.leave(); }
+      if (!userId) { await ctx.reply('❌ Пользователь не найден'); return finishScene(ctx); }
 
       if (workers.length === 0) {
         await ctx.answerCbQuery('Нет сотрудников');
@@ -114,7 +115,7 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
             `🔔 Новая заявка #${ticket.number}!\n📋 ${ticket.title}\n👤 От: ${ctx.user?.firstName || 'Пользователь'}\n📂 ${ticket.category}\n\nНазначьте исполнителя!`,
           );
         }
-        return ctx.scene.leave();
+        return finishScene(ctx);
       }
 
       const workerList = workers.map((w: IUser) => ({
@@ -126,7 +127,7 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
     } catch (error) {
       logger.error('Error:', error);
       await ctx.reply('Ошибка');
-      return ctx.scene.leave();
+      return finishScene(ctx);
     }
   },
 
@@ -135,7 +136,7 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
     const workerId = ctx.callbackQuery.data.replace('worker_', '');
     const state = ctx.scene.state as CreateTicketState;
     const userId = await getUserId(ctx);
-    if (!userId) { await ctx.reply('❌ Ошибка'); return ctx.scene.leave(); }
+    if (!userId) { await ctx.reply('❌ Ошибка'); return finishScene(ctx); }
 
     await ctx.answerCbQuery('Создаю заявку...');
     try {
@@ -183,13 +184,8 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
       await ctx.reply(`❌ Ошибка: ${error.message}`);
       logger.error('Error creating ticket:', error);
     }
-    return ctx.scene.leave();
+    return finishScene(ctx);
   },
 );
 
-createTicketScene.hears(/Отмена/i, async (ctx) => {
-  await ctx.scene.leave();
-  if (ctx.backToMainMenu) {
-    await ctx.backToMainMenu(ctx);
-  }
-});
+createTicketScene.hears(/Отмена/i, async (ctx) => finishScene(ctx));
