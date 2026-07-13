@@ -3,3 +3,5 @@ dist/
 logs/
 .env
 docker-compose.override.yml
+graphify-out/
+.cursor/
