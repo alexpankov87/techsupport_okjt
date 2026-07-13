@@ -41,10 +41,11 @@ export const createBot = (token: string): Telegraf<BotContext> => {
 
   bot.context.backToMainMenu = backToMainMenu;
 
+  // auth before stage: scene handlers need ctx.user (Telegraf runs use() in order)
   bot.use(session());
-  bot.use(stage.middleware());
-  bot.use(loggerMiddleware);
   bot.use(authMiddleware(userService));
+  bot.use(loggerMiddleware);
+  bot.use(stage.middleware());
 
   setupCallbackHandlers(bot);
   setupReportHandlers(bot);
