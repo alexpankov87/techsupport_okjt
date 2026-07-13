@@ -66,6 +66,10 @@ export class UserService {
     return await this.userRepository.findAllActive();
   }
 
+  async searchUsers(query: string): Promise<IUser[]> {
+    return this.userRepository.searchActive(query);
+  }
+
   async getUserById(id: string): Promise<IUser> {
     const user = await this.userRepository.findById(id);
     if (!user) throw new NotFoundError('Пользователь не найден');

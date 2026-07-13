@@ -60,12 +60,24 @@ for (const file of ['src/bot/scenes/createTicket.scene.ts', 'src/bot/scenes/crea
   else ok(`${path.basename(file)} skips phone when cached`);
 }
 
-const userMgmt = read('src/bot/handlers/userManagement.handler.ts');
-if (!userMgmt.includes('📞 Телефон:')) fail('user list must show phone');
+const usersUtil = read('src/bot/utils/users.ts');
+if (!usersUtil.includes('📞 Телефон:')) fail('user cards must show phone');
 else ok('user list shows phone');
 
 const phoneCore = read('src/utils/phone.ts');
 if (!phoneCore.includes('isValidPhone')) fail('phone validation missing');
 else ok('phone validation present');
+
+const userMgmt = read('src/bot/handlers/userManagement.handler.ts');
+if (!userMgmt.includes("ctx.scene.enter('users')")) fail('users scene entry missing');
+else ok('users search scene wired');
+
+const usersScene = read('src/bot/scenes/users.scene.ts');
+if (!usersScene.includes('sendUserSearch')) fail('users scene must support search');
+else ok('users scene has search');
+
+const userRepo = read('src/repositories/UserRepository.ts');
+if (!userRepo.includes('searchActive')) fail('UserRepository missing searchActive');
+else ok('user search in repository');
 
 if (failed) process.exit(1);

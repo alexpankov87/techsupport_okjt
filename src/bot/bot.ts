@@ -10,7 +10,7 @@ import { userMainKeyboard } from './keyboards/user.keyboard';
 import { superAdminMainKeyboard } from './keyboards/superAdmin.keyboard';
 import { adminMainKeyboard } from './keyboards/admin.keyboard';
 import { ticketStatusKeyboard } from './keyboards/ticket.keyboard';
-import { createTicketScene, manageTicketScene, createUserTicketScene } from './scenes';
+import { createTicketScene, manageTicketScene, createUserTicketScene, usersScene } from './scenes';
 import { setupCallbackHandlers } from './handlers';
 import { setupReportHandlers } from './handlers/report.handler';
 import { setupAdminActions } from './handlers/admin.handler';
@@ -28,7 +28,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
   bot.context.userService = userService;
   bot.context.ticketService = ticketService;
 
-  const stage = new Scenes.Stage<BotContext>([createTicketScene, manageTicketScene, createUserTicketScene]);
+  const stage = new Scenes.Stage<BotContext>([createTicketScene, manageTicketScene, createUserTicketScene, usersScene]);
 
   const backToMainMenu = async (ctx: BotContext) => {
     let user = ctx.user;

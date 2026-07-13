@@ -23,6 +23,22 @@ export class UserRepository {
     return await UserModel.find({ isActive: true });
   }
 
+  async searchActive(query: string, limit = 20): Promise<IUser[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const or: Record<string, unknown>[] = [
+      { firstName: { $regex: q, $options: 'i' } },
+      { lastName: { $regex: q, $options: 'i' } },
+      { username: { $regex: q, $options: 'i' } },
+      { phone: { $regex: q, $options: 'i' } },
+    ];
+    if (/^\d+$/.test(q)) {
+      const n = Number(q);
+      if (Number.isSafeInteger(n)) or.push({ telegramId: n });
+    }
+    return UserModel.find({ isActive: true, $or: or }).limit(limit);
+  }
+
   async create(data: Partial<IUser>): Promise<IUser> {
     try {
       const user = new UserModel(data);

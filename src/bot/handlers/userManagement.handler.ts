@@ -1,10 +1,5 @@
 import { BotContext } from '../middlewares/auth.middleware';
-import { UserService } from '../../services/UserService';
-import { UserRepository } from '../../repositories/UserRepository';
-import { TicketRepository } from '../../repositories/TicketRepository';
-import { TicketService } from '../../services/TicketService';
-import { UserRole, IUser } from '../../models';
-import { userManagementKeyboard } from '../keyboards/superAdmin.keyboard';
+import { UserRole } from '../../models';
 import { logger } from '../../utils/logger';
 import { formatUserPhone } from '../utils/phone';
 
@@ -12,41 +7,7 @@ export const setupUserManagementHandlers = (bot: any): void => {
   bot.hears('👥 Пользователи', async (ctx: BotContext) => {
     const user = ctx.user!;
     if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.ADMIN) return;
-
-    try {
-      const userRepo = new UserRepository();
-      const userService = new UserService(userRepo);
-      const ticketService = new TicketService(new TicketRepository());
-      const users = await userService.getAllUsers();
-
-      if (users.length === 0) {
-        await ctx.reply('Нет пользователей');
-        return;
-      }
-
-      for (const u of users) {
-        const roleLabel: Record<string, string> = {
-          super_admin: '👑 Супер-админ',
-          admin: '👑 Админ',
-          worker: '🔧 Работник',
-          user: '👤 Пользователь',
-        };
-        let phone = u.phone;
-        if (!phone) phone = await ticketService.getLastPhoneForUser(u._id.toString());
-
-        await ctx.reply(
-          `👤 ${u.firstName} ${u.lastName || ''}\n` +
-            `🆔 ID: ${u.telegramId}\n` +
-            `📞 Телефон: ${formatUserPhone(phone)}\n` +
-            `📌 Роль: ${roleLabel[u.role] || 'Не назначена'}\n` +
-            `🟢 Активен: ${u.isActive ? 'Да' : 'Нет'}`,
-          userManagementKeyboard(u),
-        );
-      }
-    } catch (error) {
-      logger.error('Error loading users:', error);
-      await ctx.reply('❌ Ошибка при загрузке пользователей');
-    }
+    await ctx.scene.enter('users');
   });
 
   bot.hears('👑 Админы', async (ctx: BotContext) => {
@@ -54,11 +15,7 @@ export const setupUserManagementHandlers = (bot: any): void => {
     if (user.role !== UserRole.SUPER_ADMIN) return;
 
     try {
-      const userRepo = new UserRepository();
-      const userService = new UserService(userRepo);
-      const ticketService = new TicketService(new TicketRepository());
-      const admins = await userService.getAdmins();
-
+      const admins = await ctx.userService.getAdmins();
       if (admins.length === 0) {
         await ctx.reply('Нет админов');
         return;
@@ -67,7 +24,7 @@ export const setupUserManagementHandlers = (bot: any): void => {
       let message = '👑 Список админов:\n\n';
       for (const admin of admins) {
         let phone = admin.phone;
-        if (!phone) phone = await ticketService.getLastPhoneForUser(admin._id.toString());
+        if (!phone) phone = await ctx.ticketService.getLastPhoneForUser(admin._id.toString());
         message += `• ${admin.firstName} ${admin.lastName || ''} (ID: ${admin.telegramId}, 📞 ${formatUserPhone(phone)})\n`;
       }
 
@@ -92,9 +49,7 @@ export const setupUserManagementHandlers = (bot: any): void => {
 
     await ctx.answerCbQuery('Назначаю...');
     try {
-      const userRepo = new UserRepository();
-      const userService = new UserService(userRepo);
-      await userService.promoteToAdmin(userId, ctx.user!);
+      await ctx.userService.promoteToAdmin(userId, ctx.user!);
       await ctx.reply('✅ Пользователь назначен админом');
     } catch (error: any) {
       await ctx.reply(`❌ Ошибка: ${error.message}`);
@@ -110,9 +65,7 @@ export const setupUserManagementHandlers = (bot: any): void => {
 
     await ctx.answerCbQuery('Назначаю...');
     try {
-      const userRepo = new UserRepository();
-      const userService = new UserService(userRepo);
-      await userService.assignWorker(userId, ctx.user!);
+      await ctx.userService.assignWorker(userId, ctx.user!);
       await ctx.reply('✅ Пользователь назначен работником');
     } catch (error: any) {
       await ctx.reply(`❌ Ошибка: ${error.message}`);
@@ -128,9 +81,7 @@ export const setupUserManagementHandlers = (bot: any): void => {
 
     await ctx.answerCbQuery('Деактивирую...');
     try {
-      const userRepo = new UserRepository();
-      const userService = new UserService(userRepo);
-      await userService.deactivateUser(userId, ctx.user!);
+      await ctx.userService.deactivateUser(userId, ctx.user!);
       await ctx.reply('✅ Пользователь деактивирован');
     } catch (error: any) {
       await ctx.reply(`❌ Ошибка: ${error.message}`);
