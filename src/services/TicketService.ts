@@ -115,8 +115,13 @@ export class TicketService {
     return await this.ticketRepository.updateStatus(ticketId, newStatus);
   }
 
-  async assignTicket(ticketId: string, workerId: string): Promise<ITicket> {
-    return await this.ticketRepository.assignTicket(ticketId, workerId);
+  async assignTicket(ticketId: string, workerId: string, takeInProgress = false): Promise<ITicket> {
+    return await this.ticketRepository.assignTicket(ticketId, workerId, takeInProgress);
+  }
+
+  /** Admin claims ticket for self and takes it into work. */
+  async claimTicket(ticketId: string, adminId: string): Promise<ITicket> {
+    return this.assignTicket(ticketId, adminId, true);
   }
 
   async getStats() {

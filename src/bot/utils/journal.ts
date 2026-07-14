@@ -1,11 +1,16 @@
 import { BotContext } from '../middlewares/auth.middleware';
-import { ITicket, TicketStatus } from '../../models';
+import { ITicket, TicketStatus, UserRole } from '../../models';
 import { TicketRepository } from '../../repositories';
 
 const EMOJI: Record<string, string> = {
   new: '🆕', assigned: '📌', in_progress: '🔧', resolved: '✅',
   unresolved: '❌', completed: '🏁', cancelled: '🚫',
 };
+
+export function canManageJournal(ctx: BotContext): boolean {
+  const role = ctx.user?.role;
+  return role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN;
+}
 
 export async function sendJournalTickets(
   ctx: BotContext,
@@ -25,10 +30,11 @@ export async function sendJournalTickets(
     return;
   }
 
+  const manage = canManageJournal(ctx);
   await ctx.reply(`${opts.title}\nНайдено: ${tickets.length}`);
   for (const ticket of tickets.slice(0, 15)) {
     await ctx.reply(formatJournalCard(ctx, ticket), {
-      reply_markup: { inline_keyboard: journalActions(ticket) },
+      reply_markup: { inline_keyboard: journalActions(ticket, manage) },
     });
   }
   if (tickets.length > 15) {
@@ -49,13 +55,24 @@ function formatJournalCard(ctx: BotContext, ticket: ITicket): string {
   );
 }
 
-function journalActions(ticket: ITicket) {
-  const btns: Array<Array<{ text: string; callback_data: string }>> = [
-    [{ text: '👤 Назначить/Переназначить', callback_data: `assign_ticket_${ticket._id}` }],
-  ];
-  if ((ticket as any).media?.length) {
-    btns.push([{ text: '📎 Вложения', callback_data: `view_media_${ticket._id}` }]);
+function journalActions(ticket: ITicket, canManage: boolean) {
+  const id = ticket._id.toString();
+  const btns: Array<Array<{ text: string; callback_data: string }>> = [];
+
+  if (canManage) {
+    const unassigned = ticket.status === TicketStatus.NEW || !(ticket as any).assignedTo;
+    const claimLabel = unassigned ? '🙋 Взять себе' : '🙋 На себя';
+    btns.push([
+      { text: claimLabel, callback_data: `claim_ticket_${id}` },
+      { text: '👤 Назначить/Переназначить', callback_data: `assign_ticket_${id}` },
+    ]);
   }
-  btns.push([{ text: '📦 В архив', callback_data: `archive_ticket_${ticket._id}` }]);
+
+  if ((ticket as any).media?.length) {
+    btns.push([{ text: '📎 Вложения', callback_data: `view_media_${id}` }]);
+  }
+  if (canManage) {
+    btns.push([{ text: '📦 В архив', callback_data: `archive_ticket_${id}` }]);
+  }
   return btns;
 }

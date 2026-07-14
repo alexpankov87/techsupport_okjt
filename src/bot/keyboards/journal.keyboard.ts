@@ -3,8 +3,8 @@ import { TicketStatus } from '../../models';
 
 export const journalMenuKeyboard = Markup.keyboard([
   ['🆕 Не назначенные', '📌 Назначенные'],
-  ['⏳ Не взятые в работу', '📋 Все активные'],
-  ['🔙 Главное меню'],
+  ['🔧 В работе', '⏳ Не взятые в работу'],
+  ['📋 Все активные', '🔙 Главное меню'],
 ]).resize();
 
 export const JOURNAL_FILTERS: Record<string, {
@@ -17,8 +17,12 @@ export const JOURNAL_FILTERS: Record<string, {
     status: [TicketStatus.NEW],
   },
   '📌 Назначенные': {
-    title: '📌 Назначенные',
+    title: '📌 Назначенные (ждут старта)',
     status: [TicketStatus.ASSIGNED],
+  },
+  '🔧 В работе': {
+    title: '🔧 В работе',
+    status: [TicketStatus.IN_PROGRESS, TicketStatus.UNRESOLVED],
   },
   '⏳ Не взятые в работу': {
     title: '⏳ Не взятые в работу (прошлые дни)',

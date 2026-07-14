@@ -110,10 +110,17 @@ export class TicketRepository {
     return ticket;
   }
 
-  async assignTicket(id: string, workerId: string): Promise<ITicket> {
+  async assignTicket(id: string, workerId: string, takeInProgress = false): Promise<ITicket> {
+    const existing = await TicketModel.findById(id);
+    if (!existing) throw new NotFoundError('Заявка не найдена');
+
+    let status = TicketStatus.ASSIGNED;
+    if (takeInProgress) status = TicketStatus.IN_PROGRESS;
+    else if (existing.status === TicketStatus.IN_PROGRESS) status = TicketStatus.IN_PROGRESS;
+
     const ticket = await TicketModel.findByIdAndUpdate(
       id,
-      { $set: { assignedTo: new mongoose.Types.ObjectId(workerId), status: TicketStatus.ASSIGNED } },
+      { $set: { assignedTo: new mongoose.Types.ObjectId(workerId), status } },
       { returnDocument: 'after' },
     );
     if (!ticket) throw new NotFoundError('Заявка не найдена');

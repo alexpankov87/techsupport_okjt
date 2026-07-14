@@ -17,7 +17,7 @@ import { setupAdminActions } from './handlers/admin.handler';
 import { setupUserManagementHandlers } from './handlers/userManagement.handler';
 import { formatUserPhone } from './utils/phone';
 import { assigneePickerRows } from './utils/assignees';
-import { sendJournalTickets } from './utils/journal';
+import { sendJournalTickets, canManageJournal } from './utils/journal';
 import { journalMenuKeyboard, JOURNAL_FILTERS } from './keyboards/journal.keyboard';
 
 export const createBot = (token: string): Telegraf<BotContext> => {
@@ -69,14 +69,21 @@ export const createBot = (token: string): Telegraf<BotContext> => {
   bot.hears('📝 Подать заявку', async (ctx) => { await ctx.scene.enter('create_user_ticket'); });
 
   bot.hears('📊 Журнал заявок', async (ctx) => {
+    if (!canManageJournal(ctx)) { await ctx.reply('Недостаточно прав'); return; }
     await ctx.reply(
-      '📊 Журнал заявок\n\nВыберите раздел:\n• Не назначенные\n• Назначенные\n• Не взятые в работу (прошлые дни)\n• Все активные',
+      '📊 Журнал заявок\n\n' +
+        '• Не назначенные — взять себе или назначить работнику\n' +
+        '• Назначенные — переназначить\n' +
+        '• В работе — переназначить уже взятые\n' +
+        '• Не взятые в работу — хвосты прошлых дней\n' +
+        '• Все активные',
       journalMenuKeyboard,
     );
   });
 
   for (const [label, filter] of Object.entries(JOURNAL_FILTERS)) {
     bot.hears(label, async (ctx) => {
+      if (!canManageJournal(ctx)) { await ctx.reply('Недостаточно прав'); return; }
       try {
         await sendJournalTickets(ctx, filter);
       } catch (e) {
@@ -112,6 +119,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
   });
 
   bot.action(/^archive_ticket_(.+)$/, async (ctx) => {
+    if (!canManageJournal(ctx)) { await ctx.answerCbQuery('Недостаточно прав'); return; }
     const ticketId = (ctx as any).match[1];
     try {
       const ticket = await ctx.ticketService.archiveTicket(ticketId);
@@ -145,7 +153,20 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     } catch (e) { await ctx.reply('❌ Ошибка'); }
   });
 
+  bot.action(/^claim_ticket_(.+)$/, async (ctx) => {
+    if (!canManageJournal(ctx)) { await ctx.answerCbQuery('Недостаточно прав'); return; }
+    const ticketId = (ctx as any).match[1];
+    const adminId = (ctx.user as any)?._id?.toString();
+    if (!adminId) { await ctx.answerCbQuery('Ошибка'); return; }
+    try {
+      const ticket = await ctx.ticketService.claimTicket(ticketId, adminId);
+      await ctx.reply(`✅ #${ticket.number} → вы (${ctx.user!.firstName}), статус: в работе\nОткройте 📋 Мои заявки`);
+    } catch (e: any) { await ctx.reply(`❌ ${e.message}`); }
+    await ctx.answerCbQuery();
+  });
+
   bot.action(/^assign_ticket_(.+)$/, async (ctx) => {
+    if (!canManageJournal(ctx)) { await ctx.answerCbQuery('Недостаточно прав'); return; }
     const ticketId = (ctx as any).match[1];
     const actors = await ctx.userService.getAssignableUsers(ctx.user);
     if (actors.length === 0) { await ctx.reply('Нет сотрудников'); await ctx.answerCbQuery(); return; }
@@ -154,17 +175,23 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     const cur = (ticket as any)?.assignedTo?.firstName ? `Текущий: ${(ticket as any).assignedTo.firstName}` : 'Текущий: не назначен';
     const actorId = (ctx.user as any)?._id?.toString();
     const btns = assigneePickerRows(ticketId, actors, actorId);
-    await ctx.reply(`${cur}\n\nВыберите:`, { reply_markup: { inline_keyboard: btns } });
+    await ctx.reply(`${cur}\n\nНазначить на себя или работника:`, { reply_markup: { inline_keyboard: btns } });
     await ctx.answerCbQuery();
   });
 
   bot.action(/^do_assign_(.+)_(.+)$/, async (ctx) => {
+    if (!canManageJournal(ctx)) { await ctx.answerCbQuery('Недостаточно прав'); return; }
     const [, ticketId, workerId] = (ctx as any).match;
     try {
-      const ticket = await ctx.ticketService.assignTicket(ticketId, workerId);
+      const selfId = (ctx.user as any)?._id?.toString();
+      const takeSelf = selfId === workerId;
+      const ticket = await ctx.ticketService.assignTicket(ticketId, workerId, takeSelf);
       const worker = await ctx.userService.getUserById(workerId);
-      await ctx.reply(`✅ #${ticket.number} → ${worker.firstName}`);
-      await ctx.telegram.sendMessage(worker.telegramId, `🔔 Заявка #${ticket.number}\n📋 ${ticket.title}\n\nПримите в работу!`);
+      const note = takeSelf ? ', статус: в работе' : '';
+      await ctx.reply(`✅ #${ticket.number} → ${worker.firstName}${note}`);
+      if (!takeSelf) {
+        await ctx.telegram.sendMessage(worker.telegramId, `🔔 Заявка #${ticket.number}\n📋 ${ticket.title}\n\nПримите в работу!`);
+      }
     } catch (e: any) { await ctx.reply(`❌ ${e.message}`); }
     await ctx.answerCbQuery();
   });

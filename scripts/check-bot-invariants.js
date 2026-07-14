@@ -114,9 +114,18 @@ if (!appTs.includes('archiveOldTickets(1)')) fail('bootstrap must archive finish
 else ok('auto-archive after 1 day');
 
 const journalFilters = read('src/bot/keyboards/journal.keyboard.ts');
-for (const label of ['Не назначенные', 'Назначенные', 'Не взятые в работу']) {
+for (const label of ['Не назначенные', 'Назначенные', 'Не взятые в работу', 'В работе']) {
   if (!journalFilters.includes(label)) fail(`journal missing filter: ${label}`);
   else ok(`journal filter: ${label}`);
 }
+
+if (!botTs.includes('claim_ticket_') || !botTs.includes('claimTicket')) {
+  fail('admin claim-to-self action missing');
+} else ok('admin can claim tickets');
+
+const journalUtil = read('src/bot/utils/journal.ts');
+if (!journalUtil.includes('Взять себе') || !journalUtil.includes('Назначить/Переназначить')) {
+  fail('journal must offer claim + assign actions');
+} else ok('journal claim+assign buttons');
 
 if (failed) process.exit(1);
