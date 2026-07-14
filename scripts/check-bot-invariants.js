@@ -80,4 +80,21 @@ const userRepo = read('src/repositories/UserRepository.ts');
 if (!userRepo.includes('searchActive')) fail('UserRepository missing searchActive');
 else ok('user search in repository');
 
+const assignees = read('src/bot/utils/assignees.ts');
+if (!assignees.includes('mergeAssignable') || !assignees.includes('На себя')) fail('admin self-assign helpers missing');
+else ok('admin self-assign helpers');
+
+const userSvc = read('src/services/UserService.ts');
+if (!userSvc.includes('getAssignableUsers')) fail('UserService.getAssignableUsers missing');
+else ok('getAssignableUsers in UserService');
+
+if (!botTs.includes('getAssignableUsers')) fail('assign picker must use getAssignableUsers');
+else ok('assign picker uses getAssignableUsers');
+
+for (const file of ['src/bot/keyboards/admin.keyboard.ts', 'src/bot/keyboards/superAdmin.keyboard.ts']) {
+  const src = read(file);
+  if (!src.includes('📋 Мои заявки')) fail(`${file} missing Мои заявки for self-assigned work`);
+  else ok(`${path.basename(file)} has Мои заявки`);
+}
+
 if (failed) process.exit(1);

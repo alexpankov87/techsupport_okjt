@@ -16,6 +16,7 @@ import { setupReportHandlers } from './handlers/report.handler';
 import { setupAdminActions } from './handlers/admin.handler';
 import { setupUserManagementHandlers } from './handlers/userManagement.handler';
 import { formatUserPhone } from './utils/phone';
+import { assigneePickerRows } from './utils/assignees';
 
 export const createBot = (token: string): Telegraf<BotContext> => {
   const bot = new Telegraf<BotContext>(token);
@@ -146,12 +147,13 @@ export const createBot = (token: string): Telegraf<BotContext> => {
 
   bot.action(/^assign_ticket_(.+)$/, async (ctx) => {
     const ticketId = (ctx as any).match[1];
-    const workers = await ctx.userService.getActiveWorkers();
-    if (workers.length === 0) { await ctx.reply('Нет сотрудников'); await ctx.answerCbQuery(); return; }
+    const actors = await ctx.userService.getAssignableUsers(ctx.user);
+    if (actors.length === 0) { await ctx.reply('Нет сотрудников'); await ctx.answerCbQuery(); return; }
     const repo = new TicketRepository();
     const ticket = await repo.findById(ticketId);
     const cur = (ticket as any)?.assignedTo?.firstName ? `Текущий: ${(ticket as any).assignedTo.firstName}` : 'Текущий: не назначен';
-    const btns = workers.map(w => [{ text: `👤 ${w.firstName}`, callback_data: `do_assign_${ticketId}_${(w as any)._id}` }]);
+    const actorId = (ctx.user as any)?._id?.toString();
+    const btns = assigneePickerRows(ticketId, actors, actorId);
     await ctx.reply(`${cur}\n\nВыберите:`, { reply_markup: { inline_keyboard: btns } });
     await ctx.answerCbQuery();
   });
@@ -182,7 +184,12 @@ export const createBot = (token: string): Telegraf<BotContext> => {
 
   bot.hears('📋 Мои заявки', async (ctx) => {
     const user = ctx.user!;
-    if (user.role === UserRole.WORKER) {
+    const isAssignee =
+      user.role === UserRole.WORKER ||
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.SUPER_ADMIN;
+
+    if (isAssignee) {
       const tickets = await ctx.ticketService.getActiveTicketsForWorker((user as any)._id.toString());
       if (!tickets.length) { await ctx.reply('✅ Нет активных заявок'); return; }
       for (const t of tickets) {
@@ -194,7 +201,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
           );
         } else {
           await ctx.reply(
-            `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${(t as any).phone || ''}\n📊 ${t.status}\n\nИзменение статуса недоступно.`,
+            `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${ctx.ticketService.displayPhone(t)}\n📊 ${t.status}\n\nИзменение статуса недоступно.`,
           );
         }
       }

@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger';
 import { finishScene } from '../utils/scene';
 import { acceptPhoneInput, promptMediaStep, resolveUserPhone } from '../utils/phone';
 import { isValidPhone } from '../../utils/phone';
+import { assigneeLabel } from '../utils/assignees';
 
 interface CreateTicketState {
   title?: string;
@@ -101,7 +102,7 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
     await ctx.answerCbQuery(`Выбрано: ${category}`);
 
     try {
-      const workers = await ctx.userService.getActiveWorkers();
+      const workers = await ctx.userService.getAssignableUsers(ctx.user);
       const userId = await getUserId(ctx);
       if (!userId) { await ctx.reply('❌ Пользователь не найден'); return finishScene(ctx); }
 
@@ -128,9 +129,10 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
         return finishScene(ctx);
       }
 
+      const actorId = (ctx.user as any)?._id?.toString();
       const workerList = workers.map((w: IUser) => ({
         id: (w as any)._id?.toString() || '',
-        name: `${w.firstName} ${(w as any).lastName || ''}`.trim(),
+        name: assigneeLabel(w, actorId),
       }));
       await ctx.reply('👤 Выберите сотрудника:', workersKeyboard(workerList));
       return ctx.wizard.next();

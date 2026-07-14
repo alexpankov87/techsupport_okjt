@@ -11,7 +11,7 @@ export const categoryKeyboard = Markup.inlineKeyboard([
 
 export const workersKeyboard = (workers: Array<{ id: string; name: string }>) => {
   const buttons = workers.map((w) =>
-    [Markup.button.callback(`👤 ${w.name}`, `worker_${w.id}`)],
+    [Markup.button.callback(w.name, `worker_${w.id}`)],
   );
   return Markup.inlineKeyboard(buttons);
 };

@@ -58,6 +58,16 @@ export class UserService {
     return await this.userRepository.findActiveWorkers();
   }
 
+  /** Workers + current admin/super-admin (for self-assign). */
+  async getAssignableUsers(actor?: IUser): Promise<IUser[]> {
+    const workers = await this.userRepository.findActiveWorkers();
+    if (!actor) return workers;
+    if (actor.role !== UserRole.ADMIN && actor.role !== UserRole.SUPER_ADMIN) return workers;
+    const id = actor._id.toString();
+    if (workers.some((w) => w._id.toString() === id)) return workers;
+    return [actor, ...workers];
+  }
+
   async getAdmins(): Promise<IUser[]> {
     return await this.userRepository.findByRole(UserRole.ADMIN);
   }
