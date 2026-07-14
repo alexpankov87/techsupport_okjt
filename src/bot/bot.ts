@@ -17,6 +17,8 @@ import { setupAdminActions } from './handlers/admin.handler';
 import { setupUserManagementHandlers } from './handlers/userManagement.handler';
 import { formatUserPhone } from './utils/phone';
 import { assigneePickerRows } from './utils/assignees';
+import { sendJournalTickets } from './utils/journal';
+import { journalMenuKeyboard, JOURNAL_FILTERS } from './keyboards/journal.keyboard';
 
 export const createBot = (token: string): Telegraf<BotContext> => {
   const bot = new Telegraf<BotContext>(token);
@@ -67,28 +69,21 @@ export const createBot = (token: string): Telegraf<BotContext> => {
   bot.hears('📝 Подать заявку', async (ctx) => { await ctx.scene.enter('create_user_ticket'); });
 
   bot.hears('📊 Журнал заявок', async (ctx) => {
-    try {
-      const repo = new TicketRepository();
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-      const tickets = await repo.findAll({
-        status: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.UNRESOLVED],
-        dateFrom: today, dateTo: tomorrow,
-      });
-      if (tickets.length === 0) { await ctx.reply('📊 Нет заявок за сегодня'); return; }
-      const emoji: Record<string, string> = { new: '🆕', assigned: '📌', in_progress: '🔧', resolved: '✅', unresolved: '❌', completed: '🏁', cancelled: '🚫' };
-      for (const ticket of tickets.slice(0, 10)) {
-        const a = (ticket.assignedTo as any)?.firstName || 'Не назначен';
-        const al = (ticket.assignedTo as any)?.lastName || '';
-        const an = a !== 'Не назначен' ? `${a} ${al}` : a;
-        const msg = `${emoji[ticket.status]} #${ticket.number} - ${ticket.title}\n👤 ${an}\n📅 ${ticket.createdAt.toLocaleDateString()}\n📞 ${ctx.ticketService.displayPhone(ticket)}\n`;
-        const btns = [[{ text: '👤 Назначить/Переназначить', callback_data: `assign_ticket_${ticket._id}` }]];
-        if ((ticket as any).media?.length) btns.push([{ text: '📎 Вложения', callback_data: `view_media_${ticket._id}` }]);
-        btns.push([{ text: '📦 В архив', callback_data: `archive_ticket_${ticket._id}` }]);
-        await ctx.reply(msg, { reply_markup: { inline_keyboard: btns } });
-      }
-    } catch (e) { await ctx.reply('❌ Ошибка'); }
+    await ctx.reply(
+      '📊 Журнал заявок\n\nВыберите раздел:\n• Не назначенные\n• Назначенные\n• Не взятые в работу (прошлые дни)\n• Все активные',
+      journalMenuKeyboard,
+    );
   });
+
+  for (const [label, filter] of Object.entries(JOURNAL_FILTERS)) {
+    bot.hears(label, async (ctx) => {
+      try {
+        await sendJournalTickets(ctx, filter);
+      } catch (e) {
+        await ctx.reply('❌ Ошибка');
+      }
+    });
+  }
 
   bot.hears('✅ Выполнено сегодня', async (ctx) => {
     const user = ctx.user!;
@@ -127,11 +122,16 @@ export const createBot = (token: string): Telegraf<BotContext> => {
 
   bot.hears('📦 Архив заявок', async (ctx) => {
     try {
+      // Move finished tickets older than yesterday into archive first
+      await ctx.ticketService.archiveOldTickets(1);
       const repo = new TicketRepository();
       const tickets = await repo.getArchived({});
       if (tickets.length === 0) { await ctx.reply('📦 Архив пуст'); return; }
       let msg = '📦 Архив заявок:\n\n';
-      for (const t of tickets.slice(0, 15)) msg += `#${t.number} - ${t.title}\n📊 ${t.status} | ${t.createdAt.toLocaleDateString()}\n\n`;
+      for (const t of tickets.slice(0, 15)) {
+        const w = (t.assignedTo as any)?.firstName || '—';
+        msg += `#${t.number} - ${t.title}\n📊 ${t.status} | 📅 ${t.createdAt.toLocaleDateString()} | 👤 ${w}\n\n`;
+      }
       await ctx.reply(msg);
     } catch (e) { await ctx.reply('❌ Ошибка'); }
   });

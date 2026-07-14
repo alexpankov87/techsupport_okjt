@@ -14,7 +14,8 @@ const bootstrap = async (): Promise<void> => {
     const ticketRepo = new TicketRepository();
     const ticketSvc = new TicketService(ticketRepo);
 
-    const archivedCompleted = await ticketSvc.archiveOldTickets(30);
+    // Yesterday's resolved/completed → archive (keep open tickets in journal)
+    const archivedCompleted = await ticketSvc.archiveOldTickets(1);
     if (archivedCompleted > 0) logger.info(`Автоархивация завершенных: ${archivedCompleted} заявок`);
 
     const archivedOpen = await ticketSvc.archiveOldOpen(7);

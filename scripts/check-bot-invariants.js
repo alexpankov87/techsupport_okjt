@@ -18,11 +18,18 @@ const stage = botTs.indexOf('stage.middleware()');
 if (auth < 0 || stage < 0 || auth > stage) fail('authMiddleware must run before stage.middleware()');
 else ok('auth before stage');
 
-// journal excludes resolved (they go to "Выполнено сегодня")
-if (botTs.includes('TicketStatus.RESOLVED, TicketStatus.UNRESOLVED') ||
-    botTs.includes('IN_PROGRESS, TicketStatus.RESOLVED')) {
-  fail('journal must not include RESOLVED tickets');
-} else ok('journal excludes resolved');
+// journal excludes resolved (they go to "Выполнено сегодня" / archive)
+const journalKb = read('src/bot/keyboards/journal.keyboard.ts');
+if (journalKb.includes('TicketStatus.RESOLVED')) fail('journal filters must not include RESOLVED');
+else ok('journal excludes resolved');
+
+if (!botTs.includes('sendJournalTickets') || !botTs.includes('journalMenuKeyboard')) {
+  fail('journal menu filters missing');
+} else ok('journal menu with filters');
+
+if (botTs.includes('dateFrom: today, dateTo: tomorrow')) {
+  fail('active journal must not be limited to today only');
+} else ok('journal not today-only');
 
 if (!botTs.includes("bot.hears('✅ Выполнено сегодня'")) fail('handler for Выполнено сегодня missing');
 else ok('resolved-today handler present');
@@ -95,6 +102,21 @@ for (const file of ['src/bot/keyboards/admin.keyboard.ts', 'src/bot/keyboards/su
   const src = read(file);
   if (!src.includes('📋 Мои заявки')) fail(`${file} missing Мои заявки for self-assigned work`);
   else ok(`${path.basename(file)} has Мои заявки`);
+}
+
+const ticketRepo = read('src/repositories/TicketRepository.ts');
+if (!ticketRepo.includes('TicketStatus.RESOLVED') || !ticketRepo.includes('archiveCompleted')) {
+  fail('archiveCompleted must include RESOLVED');
+} else ok('archive includes resolved tickets');
+
+const appTs = read('src/app.ts');
+if (!appTs.includes('archiveOldTickets(1)')) fail('bootstrap must archive finished tickets after 1 day');
+else ok('auto-archive after 1 day');
+
+const journalFilters = read('src/bot/keyboards/journal.keyboard.ts');
+for (const label of ['Не назначенные', 'Назначенные', 'Не взятые в работу']) {
+  if (!journalFilters.includes(label)) fail(`journal missing filter: ${label}`);
+  else ok(`journal filter: ${label}`);
 }
 
 if (failed) process.exit(1);

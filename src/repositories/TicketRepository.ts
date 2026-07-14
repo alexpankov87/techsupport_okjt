@@ -141,8 +141,11 @@ export class TicketRepository {
     cutoff.setDate(cutoff.getDate() - daysOld);
     const result = await TicketModel.updateMany(
       {
-        status: { $in: [TicketStatus.COMPLETED, TicketStatus.CANCELLED] },
-        updatedAt: { $lt: cutoff },
+        status: { $in: [TicketStatus.RESOLVED, TicketStatus.COMPLETED, TicketStatus.CANCELLED] },
+        $or: [
+          { resolvedAt: { $lt: cutoff } },
+          { resolvedAt: { $exists: false }, updatedAt: { $lt: cutoff } },
+        ],
         archived: { $ne: true },
       },
       { $set: { archived: true } },
