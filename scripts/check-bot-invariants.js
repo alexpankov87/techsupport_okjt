@@ -52,6 +52,14 @@ const workerKb = read('src/bot/keyboards/worker.keyboard.ts');
 if (!workerKb.includes('📝 Подать заявку')) fail('worker must be able to create tickets');
 else ok('worker can submit tickets');
 
+const userKb = read('src/bot/keyboards/user.keyboard.ts');
+if (!userKb.includes('❓ Как подать заявку')) fail('user keyboard missing ticket help');
+else ok('user keyboard has ticket help');
+const botSrc = read('src/bot/bot.ts');
+const helpUtil = read('src/bot/utils/ticketHelp.ts');
+if (!helpUtil.includes('TICKET_HELP_TEXT') || !botSrc.includes('TICKET_HELP_BUTTON')) fail('ticket help not wired');
+else ok('ticket help wired');
+
 // repo supports resolvedAt filter
 const repo = read('src/repositories/TicketRepository.ts');
 if (!repo.includes('resolvedFrom') || !repo.includes('resolvedTo')) fail('TicketRepository missing resolvedAt filters');

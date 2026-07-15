@@ -19,6 +19,7 @@ import { formatUserPhone } from './utils/phone';
 import { assigneePickerRows } from './utils/assignees';
 import { sendJournalTickets, canManageJournal } from './utils/journal';
 import { journalMenuKeyboard, JOURNAL_FILTERS } from './keyboards/journal.keyboard';
+import { TICKET_HELP_BUTTON, TICKET_HELP_TEXT } from './utils/ticketHelp';
 
 export const createBot = (token: string): Telegraf<BotContext> => {
   const bot = new Telegraf<BotContext>(token);
@@ -61,8 +62,11 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     if (user.role === UserRole.SUPER_ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Супер-админ 👑`, superAdminMainKeyboard);
     else if (user.role === UserRole.ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Администратор`, adminMainKeyboard);
     else if (user.role === UserRole.WORKER) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Сотрудник тех.службы\n\n📝 Подать заявку\n📋 Мои заявки`, workerMainKeyboard);
-    else await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\n\n📝 Подать заявку\n📋 Мои заявки`, userMainKeyboard);
+    else await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\n\n📝 Подать заявку\n📋 Мои заявки\n❓ Как подать заявку`, userMainKeyboard);
   });
+
+  bot.hears(TICKET_HELP_BUTTON, async (ctx) => { await ctx.reply(TICKET_HELP_TEXT); });
+  bot.command('help', async (ctx) => { await ctx.reply(TICKET_HELP_TEXT); });
 
   bot.hears('🔙 Главное меню', async (ctx) => { await ctx.scene.leave(); await backToMainMenu(ctx); });
   bot.hears('📋 Новая заявка', async (ctx) => { await ctx.scene.enter('create_ticket'); });
