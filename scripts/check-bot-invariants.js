@@ -48,6 +48,10 @@ for (const file of ['src/bot/keyboards/superAdmin.keyboard.ts', 'src/bot/keyboar
   else ok(`${path.basename(file)} has staff menu button`);
 }
 
+const workerKb = read('src/bot/keyboards/worker.keyboard.ts');
+if (!workerKb.includes('📝 Подать заявку')) fail('worker must be able to create tickets');
+else ok('worker can submit tickets');
+
 // repo supports resolvedAt filter
 const repo = read('src/repositories/TicketRepository.ts');
 if (!repo.includes('resolvedFrom') || !repo.includes('resolvedTo')) fail('TicketRepository missing resolvedAt filters');

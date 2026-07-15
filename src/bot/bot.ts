@@ -60,7 +60,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     const user = ctx.user!;
     if (user.role === UserRole.SUPER_ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Супер-админ 👑`, superAdminMainKeyboard);
     else if (user.role === UserRole.ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Администратор`, adminMainKeyboard);
-    else if (user.role === UserRole.WORKER) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Сотрудник тех.службы`, workerMainKeyboard);
+    else if (user.role === UserRole.WORKER) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Сотрудник тех.службы\n\n📝 Подать заявку\n📋 Мои заявки`, workerMainKeyboard);
     else await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\n\n📝 Подать заявку\n📋 Мои заявки`, userMainKeyboard);
   });
 
