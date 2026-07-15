@@ -6,9 +6,9 @@ import { logger } from '../../utils/logger';
 import { finishScene } from '../utils/scene';
 import { acceptPhoneInput, promptMediaStep, resolveUserPhone } from '../utils/phone';
 import { isValidPhone } from '../../utils/phone';
+import { titleFromDescription } from '../../utils/title';
 
 interface UserTicketState {
-  title?: string;
   description?: string;
   phone?: string;
   media?: string[];
@@ -20,7 +20,7 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
 
   async (ctx) => {
     await ctx.reply(
-      '📝 Опишите проблему кратко:\n\nНапример: "Не печатает принтер в 305 кабинете"',
+      '📄 Опишите проблему:\n\nНапример: "Не печатает принтер в 305 кабинете"',
       Markup.keyboard([['❌ Отмена']]).resize(),
     );
     return ctx.wizard.next();
@@ -28,21 +28,18 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
 
   async (ctx) => {
     if (!ctx.message || !('text' in ctx.message)) return;
-    (ctx.scene.state as UserTicketState).title = ctx.message.text;
-    await ctx.reply('📄 Опишите проблему подробнее:');
-    return ctx.wizard.next();
-  },
-
-  async (ctx) => {
-    if (!ctx.message || !('text' in ctx.message)) return;
     const state = ctx.scene.state as UserTicketState;
-    state.description = ctx.message.text;
+    state.description = ctx.message.text.trim();
+    if (!state.description) {
+      await ctx.reply('Опишите проблему текстом:');
+      return;
+    }
 
     const phone = await resolveUserPhone(ctx);
     if (phone) {
       state.phone = phone;
       await promptMediaStep(ctx, phone);
-      return ctx.wizard.selectStep(4);
+      return ctx.wizard.selectStep(3);
     }
 
     await ctx.reply('📞 Введите номер телефона для связи:');
@@ -102,12 +99,14 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
       if (fallback) state.phone = fallback;
     }
 
+    const title = titleFromDescription(state.description || '');
+
     try {
-      const ticket = await ctx.ticketService.createTicket(state.title!, state.description!, category, (user as any)._id.toString(), undefined, state.phone, state.media);
+      const ticket = await ctx.ticketService.createTicket(title, state.description!, category, (user as any)._id.toString(), undefined, state.phone, state.media);
       await ctx.reply(`✅ Заявка #${ticket.number} создана!\n\n📋 ${ticket.title}\n📂 ${ticket.category}\n📞 ${state.phone || 'Не указан'}\n📌 Статус: Новая\n\nАдминистратор назначит исполнителя.`);
 
       const { UserModel } = await import('../../models');
-      const admins = await UserModel.find({ role: UserRole.ADMIN, isActive: true });
+      const admins = await UserModel.find({ role: { $in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }, isActive: true });
       for (const admin of admins) {
         await ctx.telegram.sendMessage(admin.telegramId, `🔔 Новая заявка #${ticket.number}\n\n📋 ${ticket.title}\n📄 ${ticket.description}\n📞 ${state.phone || 'Не указан'}\n📂 ${ticket.category}\n👤 От: ${firstName}\n\nНазначьте исполнителя!`);
         if (state.media?.length) {

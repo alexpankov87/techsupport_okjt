@@ -7,9 +7,9 @@ import { finishScene } from '../utils/scene';
 import { acceptPhoneInput, promptMediaStep, resolveUserPhone } from '../utils/phone';
 import { isValidPhone } from '../../utils/phone';
 import { assigneeLabel } from '../utils/assignees';
+import { titleFromDescription } from '../../utils/title';
 
 interface CreateTicketState {
-  title?: string;
   description?: string;
   phone?: string;
   media?: string[];
@@ -27,12 +27,16 @@ async function getUserId(ctx: BotContext): Promise<string> {
   return '';
 }
 
+function ticketTitle(state: CreateTicketState): string {
+  return titleFromDescription(state.description || '');
+}
+
 export const createTicketScene = new Scenes.WizardScene<BotContext>(
   'create_ticket',
 
   async (ctx) => {
     await ctx.reply(
-      '📝 Введите название заявки:\n\nНапример: "Замена картриджа в МФУ HP LaserJet"',
+      '📄 Опишите проблему:\n\nУкажите детали: что не работает, где находится, срочность',
       Markup.keyboard([['❌ Отмена']]).resize(),
     );
     return ctx.wizard.next();
@@ -40,21 +44,18 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
 
   async (ctx) => {
     if (!ctx.message || !('text' in ctx.message)) return;
-    (ctx.scene.state as CreateTicketState).title = ctx.message.text;
-    await ctx.reply('📄 Введите описание проблемы:\n\nУкажите детали: что не работает, где находится, срочность');
-    return ctx.wizard.next();
-  },
-
-  async (ctx) => {
-    if (!ctx.message || !('text' in ctx.message)) return;
     const state = ctx.scene.state as CreateTicketState;
-    state.description = ctx.message.text;
+    state.description = ctx.message.text.trim();
+    if (!state.description) {
+      await ctx.reply('Опишите проблему текстом:');
+      return;
+    }
 
     const phone = await resolveUserPhone(ctx);
     if (phone) {
       state.phone = phone;
       await promptMediaStep(ctx, phone);
-      return ctx.wizard.selectStep(4);
+      return ctx.wizard.selectStep(3);
     }
 
     await ctx.reply('📞 Введите номер телефона для связи:');
@@ -105,19 +106,19 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
       const workers = await ctx.userService.getAssignableUsers(ctx.user);
       const userId = await getUserId(ctx);
       if (!userId) { await ctx.reply('❌ Пользователь не найден'); return finishScene(ctx); }
+      const title = ticketTitle(state);
 
       if (workers.length === 0) {
         await ctx.answerCbQuery('Нет сотрудников');
         await ctx.reply('Нет доступных сотрудников. Создаю заявку без назначения...');
         const ticket = await ctx.ticketService.createTicket(
-          state.title!, state.description!, state.category!, userId, undefined,
+          title, state.description!, state.category!, userId, undefined,
           state.phone, state.media,
         );
         await ctx.reply(
           `✅ Заявка #${ticket.number} создана!\n\n📋 ${ticket.title}\n📂 ${ticket.category}\n📞 ${state.phone || 'Не указан'}\n📌 Статус: Новая\n\nНазначьте исполнителя вручную.`,
         );
 
-        // Уведомление админам
         const { UserModel } = await import('../../models');
         const admins = await UserModel.find({ role: { $in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }, isActive: true });
         for (const admin of admins) {
@@ -153,7 +154,7 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
     await ctx.answerCbQuery('Создаю заявку...');
     try {
       const ticket = await ctx.ticketService.createTicket(
-        state.title!, state.description!, state.category!, userId, workerId,
+        ticketTitle(state), state.description!, state.category!, userId, workerId,
         state.phone, state.media,
       );
       await ctx.reply(
@@ -183,7 +184,6 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
         }
       }
 
-      // Уведомление админам
       const { UserModel } = await import('../../models');
       const admins = await UserModel.find({ role: { $in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }, isActive: true });
       for (const admin of admins) {

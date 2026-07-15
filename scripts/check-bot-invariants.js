@@ -67,8 +67,12 @@ else ok('phone auto-fill helper present');
 
 for (const file of ['src/bot/scenes/createTicket.scene.ts', 'src/bot/scenes/createUserTicket.scene.ts']) {
   const src = read(file);
-  if (!src.includes('resolveUserPhone') || !src.includes('selectStep(4)')) fail(`${file} must skip phone step when known`);
+  if (!src.includes('resolveUserPhone') || !src.includes('selectStep(3)')) fail(`${file} must skip phone step when known`);
   else ok(`${path.basename(file)} skips phone when cached`);
+  if (src.includes('название заявки') || src.includes('Опишите проблему кратко')) fail(`${file} must not ask for separate title`);
+  else ok(`${path.basename(file)} has no title step`);
+  if (!src.includes('titleFromDescription')) fail(`${file} must derive title from description`);
+  else ok(`${path.basename(file)} derives title`);
 }
 
 const usersUtil = read('src/bot/utils/users.ts');
