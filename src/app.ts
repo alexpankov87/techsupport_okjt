@@ -35,11 +35,16 @@ const bootstrap = async (): Promise<void> => {
     }
 
     const bot = createBot(config.bot.token);
-    await bot.launch();
-    logger.info('Бот запущен');
 
     process.once('SIGINT', () => bot.stop('SIGINT'));
     process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+    // launch() resolves only when the bot stops; don't treat mid-run API errors as startup failure
+    bot.launch().then(() => logger.info('Бот остановлен')).catch((error) => {
+      logger.error('Бот упал:', error);
+      process.exit(1);
+    });
+    logger.info('Бот запущен');
   } catch (error) {
     logger.error('Критическая ошибка запуска:', error);
     process.exit(1);

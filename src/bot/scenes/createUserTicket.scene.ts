@@ -7,6 +7,7 @@ import { finishScene } from '../utils/scene';
 import { acceptPhoneInput, promptMediaStep, resolveUserPhone } from '../utils/phone';
 import { isValidPhone } from '../../utils/phone';
 import { titleFromDescription } from '../../utils/title';
+import { takeMediaStep } from '../utils/mediaStep';
 
 interface UserTicketState {
   description?: string;
@@ -56,24 +57,19 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
   },
 
   async (ctx) => {
+    if (!ctx.message || !ctx.chat) return;
     const state = ctx.scene.state as UserTicketState;
 
-    if (ctx.message && 'photo' in ctx.message) {
-      state.media = [ctx.message.photo[ctx.message.photo.length - 1].file_id];
-    } else if (ctx.message && 'video' in ctx.message) {
-      state.media = [ctx.message.video.file_id];
-    } else if (ctx.message && 'voice' in ctx.message) {
-      state.media = [ctx.message.voice.file_id];
-    } else if (ctx.message && 'audio' in ctx.message) {
-      state.media = [ctx.message.audio.file_id];
-    } else if (ctx.message && 'document' in ctx.message) {
-      state.media = [ctx.message.document.file_id];
-    } else if (ctx.message && 'text' in ctx.message) {
-      state.media = [];
-    }
+    const goCategory = async (media: string[]) => {
+      state.media = media;
+      await ctx.reply('📂 Выберите категорию:', categoryKeyboard);
+      return ctx.wizard.next();
+    };
 
-    await ctx.reply('📂 Выберите категорию:', categoryKeyboard);
-    return ctx.wizard.next();
+    const outcome = takeMediaStep(ctx.chat.id, ctx.message as any, (media) => {
+      void goCategory(media);
+    });
+    if (outcome.kind === 'advance') return goCategory(outcome.media);
   },
 
   async (ctx) => {

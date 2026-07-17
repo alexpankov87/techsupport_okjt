@@ -2,6 +2,7 @@ import { Markup } from 'telegraf';
 import { BotContext } from '../middlewares/auth.middleware';
 import { ITicket } from '../../models';
 import { isValidPhone, pickPhone } from '../../utils/phone';
+import { MAX_ALBUM_MEDIA } from './mediaStep';
 
 /** Profile phone, or last valid ticket phone cached on user. */
 export async function resolveUserPhone(ctx: BotContext): Promise<string | undefined> {
@@ -42,7 +43,7 @@ export function ticketPhone(ticket: ITicket): string {
 export async function promptMediaStep(ctx: BotContext, phone?: string): Promise<void> {
   const header = isValidPhone(phone) ? `📞 Телефон: ${phone}\n\n` : '';
   await ctx.reply(
-    `${header}📎 Прикрепите фото, видео, голосовое, аудио или документ (или нажмите "Пропустить"):`,
+    `${header}📎 Прикрепите фото/видео (альбом до ${MAX_ALBUM_MEDIA} шт.), голосовое, аудио или документ. Или «Пропустить»:`,
     Markup.keyboard([['⏭ Пропустить', '❌ Отмена']]).resize(),
   );
 }

@@ -24,6 +24,11 @@ import { TICKET_HELP_BUTTON, TICKET_HELP_TEXT } from './utils/ticketHelp';
 export const createBot = (token: string): Telegraf<BotContext> => {
   const bot = new Telegraf<BotContext>(token);
 
+  // Don't let Telegram blips (ETIMEDOUT etc.) kill the process — Docker would restart, but users lose mid-flow.
+  bot.catch((err, ctx) => {
+    logger.error(`Bot error (update ${ctx?.updateType ?? '?'}):`, err);
+  });
+
   const userRepository = new UserRepository();
   const ticketRepository = new TicketRepository();
   const userService = new UserService(userRepository);

@@ -18,6 +18,13 @@ const stage = botTs.indexOf('stage.middleware()');
 if (auth < 0 || stage < 0 || auth > stage) fail('authMiddleware must run before stage.middleware()');
 else ok('auth before stage');
 
+if (!botTs.includes('bot.catch(')) fail('bot.catch required so Telegram timeouts do not kill process');
+else ok('bot.catch present');
+
+const appTs = read('src/app.ts');
+if (appTs.includes('await bot.launch()')) fail('await bot.launch() treats mid-run errors as startup failure');
+else ok('launch not awaited as startup gate');
+
 // journal excludes resolved (they go to "Выполнено сегодня" / archive)
 const journalKb = read('src/bot/keyboards/journal.keyboard.ts');
 if (journalKb.includes('TicketStatus.RESOLVED')) fail('journal filters must not include RESOLVED');
@@ -81,6 +88,8 @@ for (const file of ['src/bot/scenes/createTicket.scene.ts', 'src/bot/scenes/crea
   else ok(`${path.basename(file)} has no title step`);
   if (!src.includes('titleFromDescription')) fail(`${file} must derive title from description`);
   else ok(`${path.basename(file)} derives title`);
+  if (!src.includes('takeMediaStep')) fail(`${file} must use takeMediaStep for album-safe media step`);
+  else ok(`${path.basename(file)} uses takeMediaStep`);
 }
 
 const usersUtil = read('src/bot/utils/users.ts');
@@ -125,7 +134,6 @@ if (!ticketRepo.includes('TicketStatus.RESOLVED') || !ticketRepo.includes('archi
   fail('archiveCompleted must include RESOLVED');
 } else ok('archive includes resolved tickets');
 
-const appTs = read('src/app.ts');
 if (!appTs.includes('archiveOldTickets(1)')) fail('bootstrap must archive finished tickets after 1 day');
 else ok('auto-archive after 1 day');
 
