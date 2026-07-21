@@ -21,6 +21,14 @@ else ok('auth before stage');
 if (!botTs.includes('bot.catch(')) fail('bot.catch required so Telegram timeouts do not kill process');
 else ok('bot.catch present');
 
+const idsUtil = read('src/bot/utils/ids.ts');
+if (!idsUtil.includes('parseWorkerCallback') || !idsUtil.includes('parseCategoryCallback')) fail('ids helpers missing');
+else ok('callback id parsers present');
+const createTicketSrc = read('src/bot/scenes/createTicket.scene.ts');
+if (createTicketSrc.includes("replace('worker_'") || createTicketSrc.includes('replace("worker_"')) {
+  fail('createTicket must use parseWorkerCallback, not blind replace');
+} else ok('createTicket parses worker callback safely');
+
 const appTs = read('src/app.ts');
 if (appTs.includes('await bot.launch()')) fail('await bot.launch() treats mid-run errors as startup failure');
 else ok('launch not awaited as startup gate');

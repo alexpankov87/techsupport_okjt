@@ -9,6 +9,7 @@ import { isValidPhone } from '../../utils/phone';
 import { assigneeLabel } from '../utils/assignees';
 import { titleFromDescription } from '../../utils/title';
 import { takeMediaStep } from '../utils/mediaStep';
+import { parseCategoryCallback, parseObjectId, parseWorkerCallback } from '../utils/ids';
 
 interface CreateTicketState {
   description?: string;
@@ -17,13 +18,17 @@ interface CreateTicketState {
   category?: TicketCategory;
 }
 
+/** Wizard step indices in create_ticket (must match handler order). */
+const STEP_MEDIA = 3;
+const STEP_CATEGORY = 4;
+
 async function getUserId(ctx: BotContext): Promise<string> {
   const user = ctx.user;
-  if (user && (user as any)._id) return (user as any)._id.toString();
+  if (user && (user as any)._id) return parseObjectId(String((user as any)._id)) || '';
   if (ctx.from) {
     const { UserModel } = await import('../../models');
     const dbUser = await UserModel.findOne({ telegramId: ctx.from.id });
-    return dbUser?._id?.toString() || '';
+    return parseObjectId(dbUser?._id?.toString()) || '';
   }
   return '';
 }
@@ -78,15 +83,16 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
 
     const goCategory = async (media: string[]) => {
       state.media = media;
+      // Album flush is async — don't advance if user already left the media step
+      if (ctx.wizard.cursor !== STEP_MEDIA) return;
       await ctx.reply('📂 Выберите категорию заявки:', categoryKeyboard);
-      return ctx.wizard.next();
+      return ctx.wizard.selectStep(STEP_CATEGORY);
     };
 
     const outcome = takeMediaStep(ctx.chat.id, ctx.message as any, (media) => {
       void goCategory(media);
     });
     if (outcome.kind === 'advance') return goCategory(outcome.media);
-    // scheduled | ignore — stay on this step
   },
 
   async (ctx) => {
@@ -94,7 +100,11 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
       await ctx.reply('Пожалуйста, выберите категорию из списка или нажмите ❌ Отмена');
       return;
     }
-    const category = ctx.callbackQuery.data.replace('category_', '') as TicketCategory;
+    const category = parseCategoryCallback(ctx.callbackQuery.data);
+    if (!category) {
+      await ctx.answerCbQuery();
+      return; // ignore stale worker_/other buttons on this step
+    }
     const state = ctx.scene.state as CreateTicketState;
     state.category = category;
     await ctx.answerCbQuery(`Выбрано: ${category}`);
@@ -128,10 +138,16 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
       }
 
       const actorId = (ctx.user as any)?._id?.toString();
-      const workerList = workers.map((w: IUser) => ({
-        id: (w as any)._id?.toString() || '',
-        name: assigneeLabel(w, actorId),
-      }));
+      const workerList = workers
+        .map((w: IUser) => ({
+          id: parseObjectId(String((w as any)._id)) || '',
+          name: assigneeLabel(w, actorId),
+        }))
+        .filter((w) => w.id);
+      if (workerList.length === 0) {
+        await ctx.reply('Нет сотрудников с корректным id');
+        return finishScene(ctx);
+      }
       await ctx.reply('👤 Выберите сотрудника:', workersKeyboard(workerList));
       return ctx.wizard.next();
     } catch (error) {
@@ -143,7 +159,12 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
 
   async (ctx) => {
     if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) return;
-    const workerId = ctx.callbackQuery.data.replace('worker_', '');
+    const workerId = parseWorkerCallback(ctx.callbackQuery.data);
+    if (!workerId) {
+      await ctx.answerCbQuery();
+      await ctx.reply('Выберите сотрудника из списка ниже (не категорию).');
+      return;
+    }
     const state = ctx.scene.state as CreateTicketState;
     const userId = await getUserId(ctx);
     if (!userId) { await ctx.reply('❌ Ошибка'); return finishScene(ctx); }

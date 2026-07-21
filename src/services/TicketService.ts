@@ -5,6 +5,13 @@ import { logger } from '../utils/logger';
 import { isValidPhone, pickPhone } from '../utils/phone';
 import mongoose from 'mongoose';
 
+function requireObjectId(raw: string, label: string): mongoose.Types.ObjectId {
+  if (!/^[a-fA-F0-9]{24}$/.test((raw || '').trim())) {
+    throw new ValidationError(`Некорректный ${label}`);
+  }
+  return new mongoose.Types.ObjectId(raw.trim());
+}
+
 export class TicketService {
   constructor(private readonly ticketRepository: TicketRepository) {}
 
@@ -17,8 +24,8 @@ export class TicketService {
     const normalizedPhone = isValidPhone(phone) ? phone!.trim() : undefined;
     return await this.ticketRepository.create({
       title, description, category: category as TicketCategory,
-      createdBy: new mongoose.Types.ObjectId(createdBy),
-      assignedTo: assignedTo ? new mongoose.Types.ObjectId(assignedTo) : undefined,
+      createdBy: requireObjectId(createdBy, 'создатель'),
+      assignedTo: assignedTo ? requireObjectId(assignedTo, 'исполнитель') : undefined,
       phone: normalizedPhone, media,
     });
   }

@@ -8,6 +8,7 @@ import { acceptPhoneInput, promptMediaStep, resolveUserPhone } from '../utils/ph
 import { isValidPhone } from '../../utils/phone';
 import { titleFromDescription } from '../../utils/title';
 import { takeMediaStep } from '../utils/mediaStep';
+import { parseCategoryCallback } from '../utils/ids';
 
 interface UserTicketState {
   description?: string;
@@ -15,6 +16,9 @@ interface UserTicketState {
   media?: string[];
   category?: TicketCategory;
 }
+
+const STEP_MEDIA = 3;
+const STEP_CATEGORY = 4;
 
 export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
   'create_user_ticket',
@@ -62,8 +66,9 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
 
     const goCategory = async (media: string[]) => {
       state.media = media;
+      if (ctx.wizard.cursor !== STEP_MEDIA) return;
       await ctx.reply('📂 Выберите категорию:', categoryKeyboard);
-      return ctx.wizard.next();
+      return ctx.wizard.selectStep(STEP_CATEGORY);
     };
 
     const outcome = takeMediaStep(ctx.chat.id, ctx.message as any, (media) => {
@@ -78,7 +83,11 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
       return;
     }
 
-    const category = ctx.callbackQuery.data.replace('category_', '') as TicketCategory;
+    const category = parseCategoryCallback(ctx.callbackQuery.data);
+    if (!category) {
+      await ctx.answerCbQuery();
+      return;
+    }
     const state = ctx.scene.state as UserTicketState;
     const user = ctx.user;
 
