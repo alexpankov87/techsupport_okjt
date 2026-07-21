@@ -3,6 +3,16 @@ import { TicketStatus, UserRole } from '../../models';
 import { logger } from '../../utils/logger';
 import mongoose from 'mongoose';
 
+const STATUS_LABELS: Record<TicketStatus, string> = {
+  [TicketStatus.NEW]: 'Новая',
+  [TicketStatus.ASSIGNED]: 'Назначена',
+  [TicketStatus.IN_PROGRESS]: 'В работе',
+  [TicketStatus.RESOLVED]: 'Решена',
+  [TicketStatus.UNRESOLVED]: 'Не решена',
+  [TicketStatus.COMPLETED]: 'Завершена',
+  [TicketStatus.CANCELLED]: 'Отменена',
+};
+
 export const setupCallbackHandlers = (bot: any): void => {
   bot.action(/^manage_(.+)$/, async (ctx: BotContext) => {
     const match = ctx.callbackQuery && 'data' in ctx.callbackQuery
@@ -42,8 +52,34 @@ export const setupCallbackHandlers = (bot: any): void => {
     await ctx.answerCbQuery('Обновляю...');
 
     try {
-      const ticket = await ctx.ticketService.updateStatus(ticketId, newStatus, workerId);
+      await ctx.ticketService.updateStatus(ticketId, newStatus, workerId);
+      const ticket = await ctx.ticketService.getTicketById(ticketId);
       await ctx.reply(`Статус заявки #${ticket.number}: ${ticket.status}`);
+
+      // createdBy в репозитории попадает без telegramId (populate select поля),
+      // поэтому telegramId вытаскиваем отдельным запросом по _id.
+      const creator = ticket.createdBy as any;
+      const creatorId =
+        creator?._id?.toString() ??
+        (creator?._id?.valueOf?.() ? String(creator._id.valueOf()) : undefined) ??
+        creator?._id ??
+        creator?.toString?.() ??
+        undefined;
+
+      if (creatorId) {
+        const { UserModel } = await import('../../models');
+        const creatorUser = await UserModel.findById(creatorId).select('telegramId');
+        if (creatorUser?.telegramId) {
+          const statusText = STATUS_LABELS[newStatus] || newStatus;
+          let userNotice = `📣 Статус вашей заявки изменён\n📋 #${ticket.number} - ${ticket.title}\n📊 ${statusText}`;
+          if (newStatus === TicketStatus.IN_PROGRESS) {
+            userNotice += `\n👤 Исполнитель взял заявку в работу`;
+          }
+          await ctx.telegram
+            .sendMessage(creatorUser.telegramId, userNotice)
+            .catch(() => undefined);
+        }
+      }
 
       // Уведомление админам при взятии в работу
       if (newStatus === TicketStatus.IN_PROGRESS) {

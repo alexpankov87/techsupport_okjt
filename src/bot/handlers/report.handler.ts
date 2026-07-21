@@ -3,6 +3,7 @@ import { ReportService } from '../../services/ReportService';
 import { ReportRepository, ReportFilter } from '../../repositories/ReportRepository';
 import { UserService } from '../../services/UserService';
 import { UserRepository } from '../../repositories/UserRepository';
+import { UserRole } from '../../models';
 import {
   workersListKeyboard,
   reportPeriodKeyboard,
@@ -33,7 +34,12 @@ const getMatchData = (ctx: BotContext, pattern: RegExp): string[] | null => {
 
 export const setupReportHandlers = (bot: any): void => {
   // Админ: команда "📊 Отчеты"
-  bot.hears('📊 Отчеты', async (ctx: BotContext) => {
+  const showReportsWorkerPicker = async (ctx: BotContext) => {
+    if (ctx.user && ctx.user.role !== UserRole.SUPER_ADMIN && ctx.user.role !== UserRole.ADMIN) {
+      await ctx.reply('Недостаточно прав');
+      return;
+    }
+
     try {
       const userRepo = new UserRepository();
       const userService = new UserService(userRepo);
@@ -54,6 +60,14 @@ export const setupReportHandlers = (bot: any): void => {
       logger.error('Error loading workers for report:', error);
       await ctx.reply('❌ Ошибка при загрузке сотрудников');
     }
+  };
+
+  bot.hears('📊 Отчеты', async (ctx: BotContext) => {
+    await showReportsWorkerPicker(ctx);
+  });
+
+  bot.command('reports', async (ctx: BotContext) => {
+    await showReportsWorkerPicker(ctx);
   });
 
   // Выбор сотрудника
