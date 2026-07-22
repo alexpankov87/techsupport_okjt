@@ -22,6 +22,10 @@ export const reportFormatKeyboard = (workerId: string, period: string) =>
       Markup.button.callback('📄 Текстовый отчет', `report_txt_${workerId}_${period}`),
       Markup.button.callback('📊 CSV файл', `report_csv_${workerId}_${period}`),
     ],
+    [
+      Markup.button.callback('📗 Excel (.xlsx)', `report_xlsx_${workerId}_${period}`),
+      Markup.button.callback('📕 PDF', `report_pdf_${workerId}_${period}`),
+    ],
     [Markup.button.callback('❌ Отмена', 'report_cancel')],
   ]);
 

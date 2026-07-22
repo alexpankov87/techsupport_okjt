@@ -20,6 +20,15 @@ const VALID_PERIODS: ReportFilter['period'][] = [
   '6months',
 ];
 
+const PERIOD_FILENAME: Record<ReportFilter['period'], string> = {
+  day: '1day',
+  week: '1week',
+  '1month': '1month',
+  '2months': '2months',
+  '3months': '3months',
+  '6months': '6months',
+};
+
 const isValidPeriod = (value: string): value is ReportFilter['period'] => {
   return VALID_PERIODS.includes(value as ReportFilter['period']);
 };
@@ -33,7 +42,6 @@ const getMatchData = (ctx: BotContext, pattern: RegExp): string[] | null => {
 };
 
 export const setupReportHandlers = (bot: any): void => {
-  // Админ: команда "📊 Отчеты"
   const showReportsWorkerPicker = async (ctx: BotContext) => {
     if (ctx.user && ctx.user.role !== UserRole.SUPER_ADMIN && ctx.user.role !== UserRole.ADMIN) {
       await ctx.reply('Недостаточно прав');
@@ -70,7 +78,6 @@ export const setupReportHandlers = (bot: any): void => {
     await showReportsWorkerPicker(ctx);
   });
 
-  // Выбор сотрудника
   bot.action(/^report_worker_(.+)$/, async (ctx: BotContext) => {
     const match = getMatchData(ctx, /^report_worker_(.+)$/);
     if (!match) {
@@ -85,7 +92,6 @@ export const setupReportHandlers = (bot: any): void => {
     await ctx.reply('📅 Выберите период отчета:', reportPeriodKeyboard);
   });
 
-  // Выбор периода
   bot.action(/^report_period_(.+)$/, async (ctx: BotContext) => {
     const match = getMatchData(ctx, /^report_period_(.+)$/);
     if (!match) {
@@ -107,7 +113,6 @@ export const setupReportHandlers = (bot: any): void => {
     await ctx.reply('📄 Выберите формат отчета:', reportFormatKeyboard(workerId, period));
   });
 
-  // Генерация текстового отчета
   bot.action(/^report_txt_(.+)_(.+)$/, async (ctx: BotContext) => {
     const match = getMatchData(ctx, /^report_txt_(.+)_(.+)$/);
     if (!match) {
@@ -147,7 +152,6 @@ export const setupReportHandlers = (bot: any): void => {
     }
   });
 
-  // Генерация CSV отчета
   bot.action(/^report_csv_(.+)_(.+)$/, async (ctx: BotContext) => {
     const match = getMatchData(ctx, /^report_csv_(.+)_(.+)$/);
     if (!match) {
@@ -173,17 +177,7 @@ export const setupReportHandlers = (bot: any): void => {
 
       const csv = await reportService.generateCSVReport(workerId, period);
       const worker = await userService.getUserById(workerId);
-
-      const periodLabel: Record<ReportFilter['period'], string> = {
-        day: '1day',
-        week: '1week',
-        '1month': '1month',
-        '2months': '2months',
-        '3months': '3months',
-        '6months': '6months',
-      };
-
-      const filename = `report_${worker.lastName || worker.firstName}_${periodLabel[period]}.csv`;
+      const filename = `report_${worker.lastName || worker.firstName}_${PERIOD_FILENAME[period]}.csv`;
 
       await ctx.replyWithDocument(
         {
@@ -200,7 +194,82 @@ export const setupReportHandlers = (bot: any): void => {
     }
   });
 
-  // Отмена
+  bot.action(/^report_xlsx_(.+)_(.+)$/, async (ctx: BotContext) => {
+    const match = getMatchData(ctx, /^report_xlsx_(.+)_(.+)$/);
+    if (!match) {
+      await ctx.answerCbQuery('Ошибка');
+      return;
+    }
+
+    const workerId = match[0];
+    const period = match[1];
+    if (!isValidPeriod(period)) {
+      await ctx.answerCbQuery('Неверный период');
+      return;
+    }
+
+    await ctx.answerCbQuery('Генерирую Excel...');
+
+    try {
+      const userRepo = new UserRepository();
+      const userService = new UserService(userRepo);
+      const reportRepo = new ReportRepository();
+      const reportService = new ReportService(reportRepo, userService);
+
+      const xlsx = await reportService.generateXlsxReport(workerId, period);
+      const worker = await userService.getUserById(workerId);
+      const filename = `report_${worker.lastName || worker.firstName}_${PERIOD_FILENAME[period]}.xlsx`;
+
+      await ctx.replyWithDocument(
+        { source: xlsx, filename },
+        {
+          caption: `📗 Excel отчет по сотруднику ${worker.firstName} ${worker.lastName || ''}`,
+        },
+      );
+    } catch (error: any) {
+      await ctx.reply(`❌ Ошибка при генерации Excel: ${error.message}`);
+      logger.error('Error generating Excel:', error);
+    }
+  });
+
+  bot.action(/^report_pdf_(.+)_(.+)$/, async (ctx: BotContext) => {
+    const match = getMatchData(ctx, /^report_pdf_(.+)_(.+)$/);
+    if (!match) {
+      await ctx.answerCbQuery('Ошибка');
+      return;
+    }
+
+    const workerId = match[0];
+    const period = match[1];
+    if (!isValidPeriod(period)) {
+      await ctx.answerCbQuery('Неверный период');
+      return;
+    }
+
+    await ctx.answerCbQuery('Генерирую PDF...');
+
+    try {
+      const userRepo = new UserRepository();
+      const userService = new UserService(userRepo);
+      const reportRepo = new ReportRepository();
+      const reportService = new ReportService(reportRepo, userService);
+
+      const pdf = await reportService.generatePdfReport(workerId, period);
+      const worker = await userService.getUserById(workerId);
+      const filename = `report_${worker.lastName || worker.firstName}_${PERIOD_FILENAME[period]}.pdf`;
+
+      await ctx.replyWithDocument(
+        { source: pdf, filename },
+        {
+          caption: `📕 PDF отчет по сотруднику ${worker.firstName} ${worker.lastName || ''}`,
+        },
+      );
+    } catch (error: any) {
+      await ctx.reply(`❌ Ошибка при генерации PDF: ${error.message}`);
+      logger.error('Error generating PDF:', error);
+    }
+  });
+
   bot.action('report_cancel', async (ctx: BotContext) => {
     await ctx.answerCbQuery('Отменено');
     await ctx.reply('Операция отменена');

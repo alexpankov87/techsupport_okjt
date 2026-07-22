@@ -160,4 +160,14 @@ if (!journalUtil.includes('Взять себе') || !journalUtil.includes('На�
   fail('journal must offer claim + assign actions');
 } else ok('journal claim+assign buttons');
 
+const reportKb = read('src/bot/keyboards/report.keyboard.ts');
+if (!reportKb.includes('report_xlsx_') || !reportKb.includes('report_pdf_')) {
+  fail('report keyboard must include Excel and PDF buttons');
+} else ok('report Excel/PDF buttons');
+
+const reportHandler = read('src/bot/handlers/report.handler.ts');
+if (!reportHandler.includes('generateXlsxReport') || !reportHandler.includes('generatePdfReport')) {
+  fail('report handler must wire xlsx and pdf generators');
+} else ok('report Excel/PDF handlers');
+
 if (failed) process.exit(1);

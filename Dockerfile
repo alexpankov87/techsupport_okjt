@@ -13,7 +13,8 @@ COPY . .
 RUN npx tsc
 
 FROM base AS production
-RUN npm ci --omit=dev
+RUN apk add --no-cache ttf-dejavu \
+  && npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 RUN mkdir -p logs
 USER node
