@@ -170,4 +170,8 @@ if (!reportHandler.includes('generateXlsxReport') || !reportHandler.includes('ge
   fail('report handler must wire xlsx and pdf generators');
 } else ok('report Excel/PDF handlers');
 
+if (!botTs.includes("bot.on('text'") || !botTs.includes('Не понял сообщение')) {
+  fail('unmatched free text must nudge to /start or apply');
+} else ok('unmatched text nudge');
+
 if (failed) process.exit(1);

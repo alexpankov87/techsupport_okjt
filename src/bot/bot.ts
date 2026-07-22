@@ -518,6 +518,12 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     await ctx.reply(`📊 Статистика:\n\n📋 Всего: ${all.length}\n🔧 Активных: ${a}\n✅ Завершенных: ${c}`);
   });
 
+  // Unmatched free text (outside scenes): nudge to menu / apply — last so hears/commands win first
+  bot.on('text', async (ctx) => {
+    if (ctx.scene?.current) return;
+    await ctx.reply('Не понял сообщение.\n\nНажмите /start для меню или «📝 Подать заявку».');
+  });
+
   logger.info('Bot handlers initialized');
   return bot;
 };
