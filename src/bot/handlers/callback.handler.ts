@@ -1,5 +1,6 @@
 import { BotContext } from '../middlewares/auth.middleware';
 import { TicketStatus, UserRole } from '../../models';
+import { ticketStatusKeyboard } from '../keyboards';
 import { logger } from '../../utils/logger';
 import mongoose from 'mongoose';
 
@@ -12,6 +13,31 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
   [TicketStatus.COMPLETED]: 'Завершена',
   [TicketStatus.CANCELLED]: 'Отменена',
 };
+
+/** Same card shape as «Мои заявки»; edit in place so worker need not reopen the list. */
+async function refreshWorkerTicketCard(ctx: BotContext, ticket: {
+  _id: { toString(): string };
+  number: number | string;
+  title: string;
+  description: string;
+  status: TicketStatus | string;
+}): Promise<void> {
+  const status = ticket.status as TicketStatus;
+  const text =
+    `📋 #${ticket.number} - ${ticket.title}\n` +
+    `📄 ${ticket.description}\n` +
+    `📞 ${ctx.ticketService.displayPhone(ticket as any)}\n` +
+    `📊 ${STATUS_LABELS[status] || status}`;
+  const keyboard = ticketStatusKeyboard(ticket._id.toString(), status);
+  const extra = {
+    reply_markup: keyboard?.reply_markup ?? { inline_keyboard: [] as never[] },
+  };
+  try {
+    await ctx.editMessageText(text, extra);
+  } catch {
+    await ctx.reply(text, keyboard ? { reply_markup: keyboard.reply_markup } : undefined);
+  }
+}
 
 export const setupCallbackHandlers = (bot: any): void => {
   bot.action(/^manage_(.+)$/, async (ctx: BotContext) => {
@@ -54,7 +80,7 @@ export const setupCallbackHandlers = (bot: any): void => {
     try {
       await ctx.ticketService.updateStatus(ticketId, newStatus, workerId);
       const ticket = await ctx.ticketService.getTicketById(ticketId);
-      await ctx.reply(`Статус заявки #${ticket.number}: ${ticket.status}`);
+      await refreshWorkerTicketCard(ctx, ticket);
 
       // createdBy в репозитории попадает без telegramId (populate select поля),
       // поэтому telegramId вытаскиваем отдельным запросом по _id.

@@ -174,4 +174,9 @@ if (!botTs.includes("bot.on('text'") || !botTs.includes('Не понял соо�
   fail('unmatched free text must nudge to /start or apply');
 } else ok('unmatched text nudge');
 
+const statusCb = read('src/bot/handlers/callback.handler.ts');
+if (!statusCb.includes('editMessageText') || !statusCb.includes('refreshWorkerTicketCard')) {
+  fail('status change must edit the ticket card in place');
+} else ok('live ticket card on status change');
+
 if (failed) process.exit(1);

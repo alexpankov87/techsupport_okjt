@@ -150,17 +150,19 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     if (isAssignee) {
       const tickets = await ctx.ticketService.getActiveTicketsForWorker((user as any)._id.toString());
       if (!tickets.length) { await ctx.reply('✅ Нет активных заявок'); return; }
+      const statusRu: Record<string, string> = {
+        new: 'Новая', assigned: 'Назначена', in_progress: 'В работе', resolved: 'Решена',
+        unresolved: 'Не решена', completed: 'Завершена', cancelled: 'Отменена',
+      };
       for (const t of tickets) {
+        const statusText = statusRu[t.status as any] || String(t.status);
+        const body =
+          `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${ctx.ticketService.displayPhone(t)}\n📊 ${statusText}`;
         const keyboard = ticketStatusKeyboard(t._id.toString(), t.status as TicketStatus);
         if (keyboard) {
-          await ctx.reply(
-            `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${ctx.ticketService.displayPhone(t)}\n📊 ${t.status}`,
-            { reply_markup: keyboard.reply_markup },
-          );
+          await ctx.reply(body, { reply_markup: keyboard.reply_markup });
         } else {
-          await ctx.reply(
-            `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${ctx.ticketService.displayPhone(t)}\n📊 ${t.status}\n\nИзменение статуса недоступно.`,
-          );
+          await ctx.reply(`${body}\n\nИзменение статуса недоступно.`);
         }
       }
       return;
