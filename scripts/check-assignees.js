@@ -1,7 +1,7 @@
 /**
  * ponytail: mergeAssignable must prepend admin so they can self-assign.
  */
-const { mergeAssignable, assigneeLabel } = (() => {
+const { mergeAssignable, assigneeLabel, buildAssignNotices } = (() => {
   // mirror src/bot/utils/assignees.ts — keep in sync via string check + runtime below after build
   const UserRole = { ADMIN: 'admin', SUPER_ADMIN: 'super_admin', WORKER: 'worker', USER: 'user' };
   function mergeAssignable(workers, actor) {
@@ -16,7 +16,31 @@ const { mergeAssignable, assigneeLabel } = (() => {
     if (actorId && user._id.toString() === actorId) return `🙋 На себя (${name})`;
     return `👤 ${name}`;
   }
-  return { mergeAssignable, assigneeLabel };
+  function buildAssignNotices(opts) {
+    const { creatorTg, workerTg, takeSelf, number, title, workerName } = opts;
+    const statusText = takeSelf ? 'В работе' : 'Назначена';
+    if (creatorTg && workerTg && creatorTg === workerTg) {
+      const text = takeSelf
+        ? `📣 Заявка #${number} у вас в работе\n📋 ${title}\n📊 В работе`
+        : `🔔 Вам назначена заявка #${number}\n📋 ${title}\n📊 Назначена\n\nПримите в работу!`;
+      return [{ chatId: creatorTg, text }];
+    }
+    const out = [];
+    if (creatorTg) {
+      out.push({
+        chatId: creatorTg,
+        text: `📣 Вашу заявку изменили статус\n📋 #${number} - ${title}\n📊 ${statusText}\n👤 Исполнитель: ${workerName}`,
+      });
+    }
+    if (!takeSelf && workerTg) {
+      out.push({
+        chatId: workerTg,
+        text: `🔔 Заявка #${number}\n📋 ${title}\n\nПримите в работу!`,
+      });
+    }
+    return out;
+  }
+  return { mergeAssignable, assigneeLabel, buildAssignNotices };
 })();
 
 const admin = { _id: { toString: () => 'a1' }, firstName: 'Админ', lastName: '', role: 'admin' };
@@ -43,15 +67,32 @@ const label = assigneeLabel(admin, 'a1');
 if (!label.includes('На себя')) fail('self label missing');
 else ok('self label');
 
+const samePerson = buildAssignNotices({
+  creatorTg: 111, workerTg: 111, takeSelf: false, number: 'OKZ-1', title: 't', workerName: 'Дмитрий',
+});
+if (samePerson.length !== 1 || !samePerson[0].text.includes('Примите в работу')) {
+  fail('author===assignee must be one notice with take-into-work');
+} else ok('one notice when author is assignee');
+
+const separate = buildAssignNotices({
+  creatorTg: 111, workerTg: 222, takeSelf: false, number: 'OKZ-1', title: 't', workerName: 'Дмитрий',
+});
+if (separate.length !== 2) fail('distinct author/worker must get two notices');
+else ok('two notices for distinct people');
+
 const fs = require('fs');
 const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '../src/bot/utils/assignees.ts'), 'utf8');
-if (!src.includes('mergeAssignable') || !src.includes('На себя')) fail('assignees.ts missing expected API');
-else ok('assignees.ts present');
+if (!src.includes('mergeAssignable') || !src.includes('На себя') || !src.includes('buildAssignNotices')) {
+  fail('assignees.ts missing expected API');
+} else ok('assignees.ts present');
 
 const bot = fs.readFileSync(path.join(__dirname, '../src/bot/bot.ts'), 'utf8');
 if (!bot.includes('getAssignableUsers')) fail('bot must use getAssignableUsers');
 else ok('bot uses getAssignableUsers');
+if (!bot.includes('buildAssignNotices') || !bot.includes("answerCbQuery('Назначаю...')") || !bot.includes('alreadyDone')) {
+  fail('do_assign must debounce and dedupe notices');
+} else ok('do_assign dedupe wired');
 
 if (!bot.includes("user.role === UserRole.ADMIN")) fail('Мои заявки must work for admin assignees');
 else ok('Мои заявки includes admin');

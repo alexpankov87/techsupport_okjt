@@ -16,7 +16,7 @@ import { setupReportHandlers } from './handlers/report.handler';
 import { setupAdminActions } from './handlers/admin.handler';
 import { setupUserManagementHandlers } from './handlers/userManagement.handler';
 import { formatUserPhone } from './utils/phone';
-import { assigneePickerRows } from './utils/assignees';
+import { assigneePickerRows, buildAssignNotices } from './utils/assignees';
 import { sendJournalTickets, canManageJournal } from './utils/journal';
 import { journalMenuKeyboard, JOURNAL_FILTERS } from './keyboards/journal.keyboard';
 import { TICKET_HELP_BUTTON, TICKET_HELP_TEXT } from './utils/ticketHelp';
@@ -387,11 +387,21 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     const ticketId = (ctx as any).match[1];
     const adminId = (ctx.user as any)?._id?.toString();
     if (!adminId) { await ctx.answerCbQuery('Ошибка'); return; }
+    await ctx.answerCbQuery('Беру...');
     try {
+      await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => undefined);
+      const before = await ctx.ticketService.getTicketById(ticketId);
+      const prev =
+        (before.assignedTo as any)?._id?.toString?.() ??
+        (before.assignedTo as any)?.toString?.();
+      if (prev === adminId && before.status === TicketStatus.IN_PROGRESS) {
+        await ctx.reply(`✅ #${before.number} уже у вас в работе`);
+        return;
+      }
+
       const ticket = await ctx.ticketService.claimTicket(ticketId, adminId);
       await ctx.reply(`✅ #${ticket.number} → вы (${ctx.user!.firstName}), статус: в работе\nОткройте 📋 Мои заявки`);
 
-      // Notify ticket creator that it is now "in progress" (assigned->claimed)
       const full = await ctx.ticketService.getTicketById(ticketId);
       const creator = full.createdBy as any;
       const creatorId =
@@ -399,20 +409,19 @@ export const createBot = (token: string): Telegraf<BotContext> => {
         creator?._id ??
         creator?.toString?.() ??
         undefined;
-      if (creatorId) {
-        const { UserModel } = await import('../models');
-        const creatorUser = await UserModel.findById(creatorId).select('telegramId');
-        if (creatorUser?.telegramId) {
-          await ctx.telegram
-            .sendMessage(
-              creatorUser.telegramId,
-              `📣 Вашу заявку взяли в работу\n📋 #${ticket.number} - ${ticket.title}\n📊 В работе\n👤 Исполнитель: ${ctx.user!.firstName}`,
-            )
-            .catch(() => undefined);
-        }
+      if (!creatorId || creatorId === adminId) return;
+
+      const { UserModel } = await import('../models');
+      const creatorUser = await UserModel.findById(creatorId).select('telegramId');
+      if (creatorUser?.telegramId) {
+        await ctx.telegram
+          .sendMessage(
+            creatorUser.telegramId,
+            `📣 Вашу заявку взяли в работу\n📋 #${ticket.number} - ${ticket.title}\n📊 В работе\n👤 Исполнитель: ${ctx.user!.firstName}`,
+          )
+          .catch(() => undefined);
       }
     } catch (e: any) { await ctx.reply(`❌ ${e.message}`); }
-    await ctx.answerCbQuery();
   });
 
   bot.action(/^assign_ticket_(.+)$/, async (ctx) => {
@@ -432,15 +441,33 @@ export const createBot = (token: string): Telegraf<BotContext> => {
   bot.action(/^do_assign_(.+)_(.+)$/, async (ctx) => {
     if (!canManageJournal(ctx)) { await ctx.answerCbQuery('Недостаточно прав'); return; }
     const [, ticketId, workerId] = (ctx as any).match;
+    await ctx.answerCbQuery('Назначаю...');
     try {
+      // Drop picker buttons first — stops double-tap re-firing the same callback
+      await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => undefined);
+
       const selfId = (ctx.user as any)?._id?.toString();
       const takeSelf = selfId === workerId;
+      const before = await ctx.ticketService.getTicketById(ticketId);
+      const prevAssignee =
+        (before.assignedTo as any)?._id?.toString?.() ??
+        (before.assignedTo as any)?.toString?.();
+      const alreadyDone =
+        prevAssignee === workerId &&
+        (takeSelf
+          ? before.status === TicketStatus.IN_PROGRESS
+          : before.status === TicketStatus.ASSIGNED || before.status === TicketStatus.IN_PROGRESS);
+      if (alreadyDone) {
+        const worker = await ctx.userService.getUserById(workerId);
+        await ctx.reply(`✅ #${before.number} уже на ${worker.firstName}`);
+        return;
+      }
+
       const ticket = await ctx.ticketService.assignTicket(ticketId, workerId, takeSelf);
       const worker = await ctx.userService.getUserById(workerId);
       const note = takeSelf ? ', статус: в работе' : ', статус: назначена';
       await ctx.reply(`✅ #${ticket.number} → ${worker.firstName}${note}`);
 
-      // Notify ticket creator about "assigned" or "in progress"
       const full = await ctx.ticketService.getTicketById(ticketId);
       const creator = full.createdBy as any;
       const creatorId =
@@ -448,25 +475,23 @@ export const createBot = (token: string): Telegraf<BotContext> => {
         creator?._id ??
         creator?.toString?.() ??
         undefined;
-      if (creatorId) {
-        const { UserModel } = await import('../models');
-        const creatorUser = await UserModel.findById(creatorId).select('telegramId');
-        if (creatorUser?.telegramId) {
-          const statusText = takeSelf ? 'В работе' : 'Назначена';
-          const extra = takeSelf ? `\n👤 Исполнитель: ${worker.firstName}` : `\n👤 Исполнитель: ${worker.firstName}`;
-          await ctx.telegram
-            .sendMessage(
-              creatorUser.telegramId,
-              `📣 Вашу заявку изменили статус\n📋 #${ticket.number} - ${ticket.title}\n📊 ${statusText}${extra}`,
-            )
-            .catch(() => undefined);
-        }
-      }
-      if (!takeSelf) {
-        await ctx.telegram.sendMessage(worker.telegramId, `🔔 Заявка #${ticket.number}\n📋 ${ticket.title}\n\nПримите в работу!`);
+
+      const { UserModel } = await import('../models');
+      const creatorUser = creatorId
+        ? await UserModel.findById(creatorId).select('telegramId')
+        : null;
+      const notices = buildAssignNotices({
+        creatorTg: creatorUser?.telegramId,
+        workerTg: worker.telegramId,
+        takeSelf,
+        number: ticket.number,
+        title: ticket.title,
+        workerName: worker.firstName,
+      });
+      for (const n of notices) {
+        await ctx.telegram.sendMessage(n.chatId, n.text).catch(() => undefined);
       }
     } catch (e: any) { await ctx.reply(`❌ ${e.message}`); }
-    await ctx.answerCbQuery();
   });
 
   bot.action(/^view_media_(.+)$/, async (ctx) => {
