@@ -179,4 +179,12 @@ if (!statusCb.includes('editMessageText') || !statusCb.includes('refreshWorkerTi
   fail('status change must edit the ticket card in place');
 } else ok('live ticket card on status change');
 
+const cmdUtil = read('src/bot/utils/commands.ts');
+if (!cmdUtil.includes('commandsForRole') || !cmdUtil.includes('DEFAULT_COMMANDS') || !cmdUtil.includes("'apply'")) {
+  fail('role command menus missing');
+} else ok('role command menus');
+if (!botTs.includes('syncChatCommands') || !botTs.includes("scope: { type: 'chat'")) {
+  fail('/start must sync chat-scoped commands by role');
+} else ok('chat-scoped commands on /start');
+
 if (failed) process.exit(1);

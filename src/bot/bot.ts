@@ -20,6 +20,7 @@ import { assigneePickerRows, buildAssignNotices } from './utils/assignees';
 import { sendJournalTickets, canManageJournal } from './utils/journal';
 import { journalMenuKeyboard, JOURNAL_FILTERS } from './keyboards/journal.keyboard';
 import { TICKET_HELP_BUTTON, TICKET_HELP_TEXT } from './utils/ticketHelp';
+import { commandsForRole, DEFAULT_COMMANDS } from './utils/commands';
 
 export const createBot = (token: string): Telegraf<BotContext> => {
   const bot = new Telegraf<BotContext>(token);
@@ -29,25 +30,17 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     logger.error(`Bot error (update ${ctx?.updateType ?? '?'}):`, err);
   });
 
-  // Telegram "Commands" menu (shown in the UI by Telegram).
-  // Note: Telegram command list is global for the bot, so role-specific filtering happens in /help.
-  void bot.telegram
-    .setMyCommands([
-      { command: 'start', description: 'Главное меню' },
-      { command: 'help', description: 'Помощь по боту' },
-      { command: 'apply', description: 'Подать заявку' },
-      { command: 'my', description: 'Мои заявки' },
-      { command: 'new', description: 'Новая заявка (для админов)' },
-      { command: 'journal', description: 'Журнал заявок' },
-      { command: 'archive', description: 'Архив заявок' },
-      { command: 'users', description: 'Пользователи' },
-      { command: 'staff', description: 'Сотрудники' },
-      { command: 'stats', description: 'Статистика' },
-      { command: 'today', description: 'Выполнено сегодня' },
-      { command: 'done', description: 'Завершенные' },
-      { command: 'reports', description: 'Отчеты (админ)' },
-    ])
-    .catch(() => undefined);
+  // Default slash-menu for applicants; per-chat override on /start by role.
+  void bot.telegram.setMyCommands(DEFAULT_COMMANDS).catch(() => undefined);
+
+  const syncChatCommands = async (ctx: BotContext) => {
+    if (!ctx.chat?.id) return;
+    await ctx.telegram
+      .setMyCommands(commandsForRole(ctx.user?.role), {
+        scope: { type: 'chat', chat_id: ctx.chat.id },
+      })
+      .catch(() => undefined);
+  };
 
   const userRepository = new UserRepository();
   const ticketRepository = new TicketRepository();
@@ -84,6 +77,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
 
   bot.command('start', async (ctx) => {
     const user = ctx.user!;
+    await syncChatCommands(ctx);
     if (user.role === UserRole.SUPER_ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Супер-админ 👑`, superAdminMainKeyboard);
     else if (user.role === UserRole.ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Администратор`, adminMainKeyboard);
     else if (user.role === UserRole.WORKER) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Сотрудник тех.службы\n\n📝 Подать заявку\n📋 Мои заявки`, workerMainKeyboard);
