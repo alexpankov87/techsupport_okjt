@@ -48,6 +48,12 @@ async function main() {
   const pdf = await svc.generatePdfReport('507f1f77bcf86cd799439011', '1month');
   assert.ok(Buffer.isBuffer(pdf) && pdf.length > 100, 'pdf buffer');
   assert.strictEqual(pdf.slice(0, 4).toString(), '%PDF');
+  // Embedded font name from registerFont — proves we did not fall back to Helvetica-only
+  const pdfText = pdf.toString('latin1');
+  assert.ok(
+    pdfText.includes('ReportCyrillic') || pdfText.includes('DejaVu') || pdfText.includes('Arial'),
+    'pdf should embed a Cyrillic-capable font',
+  );
   console.log('OK: pdf buffer');
 
   const kb = require('fs').readFileSync(

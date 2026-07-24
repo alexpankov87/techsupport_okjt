@@ -53,16 +53,22 @@ function ticketRows(tickets: ITicket[]): ReportRow[] {
 
 function resolveCyrillicFont(): string | undefined {
   const candidates = [
+    process.env.REPORT_PDF_FONT,
     path.join(__dirname, '../../assets/fonts/DejaVuSans.ttf'),
     path.join(process.cwd(), 'assets/fonts/DejaVuSans.ttf'),
+    '/app/fonts/DejaVuSans.ttf',
+    // Alpine ttf-dejavu (node:20-alpine) installs here:
+    '/usr/share/fonts/dejavu/DejaVuSans.ttf',
     '/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf',
     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
     '/usr/share/fonts/TTF/DejaVuSans.ttf',
     'C:/Windows/Fonts/arial.ttf',
     'C:/Windows/Fonts/segoeui.ttf',
-  ];
+  ].filter((p): p is string => Boolean(p));
   return candidates.find((p) => fs.existsSync(p));
 }
+
+const PDF_FONT_NAME = 'ReportCyrillic';
 
 export class ReportService {
   constructor(
@@ -205,12 +211,18 @@ export class ReportService {
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
-        if (fontPath) {
-          doc.font(fontPath);
-        } else {
+        // Helvetica has no Cyrillic — must use a TTF with Cyrillic coverage.
+        if (!fontPath) {
           logger.warn('Cyrillic font not found for PDF; text may render incorrectly');
-          doc.font('Helvetica');
+        } else {
+          doc.registerFont(PDF_FONT_NAME, fontPath);
         }
+        // PDFKit resets to Helvetica on each new page — re-apply after addPage.
+        const useFont = () => {
+          if (fontPath) doc.font(PDF_FONT_NAME);
+          else doc.font('Helvetica');
+        };
+        useFont();
 
         doc.fontSize(14).text(
           `Отчет по сотруднику: ${worker.firstName} ${worker.lastName || ''}`.trim(),
@@ -223,6 +235,7 @@ export class ReportService {
         let y = doc.y;
 
         const drawRow = (cells: string[], header = false) => {
+          useFont();
           const fontSize = header ? 8 : 7;
           doc.fontSize(fontSize);
           let x = startX;
@@ -232,6 +245,7 @@ export class ReportService {
           const rowH = Math.max(14, ...heights) + 4;
           if (y + rowH > doc.page.height - 36) {
             doc.addPage();
+            useFont();
             y = doc.y;
           }
           cells.forEach((cell, i) => {

@@ -13,6 +13,7 @@ COPY . .
 RUN npx tsc
 
 FROM base AS production
+# Alpine ttf-dejavu → /usr/share/fonts/dejavu/DejaVuSans.ttf (used by PDF reports)
 RUN apk add --no-cache ttf-dejavu \
   && npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
