@@ -58,11 +58,30 @@ export class UserService {
     return await this.userRepository.findActiveWorkers();
   }
 
-  /** Workers + current admin/super-admin (for self-assign). */
+  /** Workers + self; super-admin also gets active admins/super-admins. */
   async getAssignableUsers(actor?: IUser): Promise<IUser[]> {
     const workers = await this.userRepository.findActiveWorkers();
     if (!actor) return workers;
     if (actor.role !== UserRole.ADMIN && actor.role !== UserRole.SUPER_ADMIN) return workers;
+
+    if (actor.role === UserRole.SUPER_ADMIN) {
+      const [admins, supers] = await Promise.all([
+        this.userRepository.findByRole(UserRole.ADMIN),
+        this.userRepository.findByRole(UserRole.SUPER_ADMIN),
+      ]);
+      const seen = new Set<string>();
+      const pool: IUser[] = [];
+      for (const u of [...admins, ...supers, ...workers]) {
+        const id = u._id.toString();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        pool.push(u);
+      }
+      const actorId = actor._id.toString();
+      if (pool.some((u) => u._id.toString() === actorId)) return pool;
+      return [actor, ...pool];
+    }
+
     const id = actor._id.toString();
     if (workers.some((w) => w._id.toString() === id)) return workers;
     return [actor, ...workers];

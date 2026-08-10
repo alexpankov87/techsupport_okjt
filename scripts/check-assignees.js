@@ -1,15 +1,31 @@
 /**
- * ponytail: mergeAssignable must prepend admin so they can self-assign.
+ * ponytail: mergeAssignable must prepend admin so they can self-assign;
+ * super-admin also merges extras (admins/super-admins).
  */
 const { mergeAssignable, assigneeLabel, buildAssignNotices } = (() => {
   // mirror src/bot/utils/assignees.ts — keep in sync via string check + runtime below after build
   const UserRole = { ADMIN: 'admin', SUPER_ADMIN: 'super_admin', WORKER: 'worker', USER: 'user' };
-  function mergeAssignable(workers, actor) {
+  function dedupeById(users) {
+    const seen = new Set();
+    const out = [];
+    for (const u of users) {
+      const id = u._id.toString();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push(u);
+    }
+    return out;
+  }
+  function mergeAssignable(workers, actor, extras = []) {
     if (!actor) return workers;
     if (actor.role !== UserRole.ADMIN && actor.role !== UserRole.SUPER_ADMIN) return workers;
+    const pool =
+      actor.role === UserRole.SUPER_ADMIN
+        ? dedupeById([...extras, ...workers])
+        : workers;
     const id = actor._id.toString();
-    if (workers.some((w) => w._id.toString() === id)) return workers;
-    return [actor, ...workers];
+    if (pool.some((w) => w._id.toString() === id)) return pool;
+    return [actor, ...pool];
   }
   function assigneeLabel(user, actorId) {
     const name = `${user.firstName} ${user.lastName || ''}`.trim();
@@ -46,6 +62,8 @@ const { mergeAssignable, assigneeLabel, buildAssignNotices } = (() => {
 const admin = { _id: { toString: () => 'a1' }, firstName: 'Админ', lastName: '', role: 'admin' };
 const worker = { _id: { toString: () => 'w1' }, firstName: 'Работник', lastName: '', role: 'worker' };
 const user = { _id: { toString: () => 'u1' }, firstName: 'Юзер', lastName: '', role: 'user' };
+const superAdmin = { _id: { toString: () => 's1' }, firstName: 'Супер', lastName: '', role: 'super_admin' };
+const otherAdmin = { _id: { toString: () => 'a2' }, firstName: 'Другой', lastName: '', role: 'admin' };
 
 let failed = false;
 const ok = (m) => console.log('OK:', m);
@@ -62,6 +80,18 @@ else ok('no duplicate admin');
 const plain = mergeAssignable([worker], user);
 if (plain.length !== 1 || plain[0]._id.toString() !== 'w1') fail('regular user must not be merged');
 else ok('user not merged into assignees');
+
+const saList = mergeAssignable([worker], superAdmin, [superAdmin, otherAdmin]);
+if (!saList.some((u) => u._id.toString() === 'a2')) fail('super-admin must see other admin');
+else ok('super-admin sees other admin');
+if (!saList.some((u) => u._id.toString() === 's1')) fail('super-admin must appear for self');
+else ok('super-admin in list for self');
+if (saList.filter((u) => u._id.toString() === 's1').length !== 1) fail('super-admin must not duplicate');
+else ok('super-admin no duplicate');
+
+const adminIgnoresExtras = mergeAssignable([worker], admin, [otherAdmin]);
+if (adminIgnoresExtras.some((u) => u._id.toString() === 'a2')) fail('admin must not see extras');
+else ok('admin ignores extras');
 
 const label = assigneeLabel(admin, 'a1');
 if (!label.includes('На себя')) fail('self label missing');
@@ -86,6 +116,8 @@ const src = fs.readFileSync(path.join(__dirname, '../src/bot/utils/assignees.ts'
 if (!src.includes('mergeAssignable') || !src.includes('На себя') || !src.includes('buildAssignNotices')) {
   fail('assignees.ts missing expected API');
 } else ok('assignees.ts present');
+if (!src.includes('extras')) fail('assignees.ts must accept extras for super-admin');
+else ok('assignees.ts extras param');
 
 const bot = fs.readFileSync(path.join(__dirname, '../src/bot/bot.ts'), 'utf8');
 if (!bot.includes('getAssignableUsers')) fail('bot must use getAssignableUsers');
@@ -100,5 +132,8 @@ else ok('Мои заявки includes admin');
 const svc = fs.readFileSync(path.join(__dirname, '../src/services/UserService.ts'), 'utf8');
 if (!svc.includes('getAssignableUsers')) fail('UserService missing getAssignableUsers');
 else ok('UserService.getAssignableUsers');
+if (!svc.includes('UserRole.SUPER_ADMIN') || !svc.includes('findByRole')) {
+  fail('getAssignableUsers must load admins for super-admin');
+} else ok('super-admin loads admins via findByRole');
 
 if (failed) process.exit(1);

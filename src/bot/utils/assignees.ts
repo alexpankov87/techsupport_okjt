@@ -1,12 +1,30 @@
 import { IUser, UserRole } from '../../models';
 
+function dedupeById(users: IUser[]): IUser[] {
+  const seen = new Set<string>();
+  const out: IUser[] = [];
+  for (const u of users) {
+    const id = u._id.toString();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(u);
+  }
+  return out;
+}
+
 /** Pure merge for tests and UI — same rules as UserService.getAssignableUsers. */
-export function mergeAssignable(workers: IUser[], actor?: IUser): IUser[] {
+export function mergeAssignable(workers: IUser[], actor?: IUser, extras: IUser[] = []): IUser[] {
   if (!actor) return workers;
   if (actor.role !== UserRole.ADMIN && actor.role !== UserRole.SUPER_ADMIN) return workers;
+
+  const pool =
+    actor.role === UserRole.SUPER_ADMIN
+      ? dedupeById([...extras, ...workers])
+      : workers;
+
   const id = actor._id.toString();
-  if (workers.some((w) => w._id.toString() === id)) return workers;
-  return [actor, ...workers];
+  if (pool.some((u) => u._id.toString() === id)) return pool;
+  return [actor, ...pool];
 }
 
 export function assigneeLabel(user: IUser, actorId?: string): string {
