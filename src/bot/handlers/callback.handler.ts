@@ -2,6 +2,8 @@ import { BotContext } from '../middlewares/auth.middleware';
 import { TicketStatus, UserRole } from '../../models';
 import { ticketStatusKeyboard } from '../keyboards';
 import { logger } from '../../utils/logger';
+import { AppError } from '../../utils/errors';
+import { parseStatusCallback } from '../utils/ids';
 import mongoose from 'mongoose';
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
@@ -55,14 +57,15 @@ export const setupCallbackHandlers = (bot: any): void => {
   });
 
   bot.action(/^status_(.+?)_(in_progress|resolved|unresolved|completed|cancelled)$/, async (ctx: BotContext) => {
-    const match = ctx.callbackQuery && 'data' in ctx.callbackQuery
-      ? ctx.callbackQuery.data.match(/^status_(.+?)_(in_progress|resolved|unresolved|completed|cancelled)$/)
-      : null;
+    const data = ctx.callbackQuery && 'data' in ctx.callbackQuery
+      ? ctx.callbackQuery.data
+      : '';
+    const parsed = parseStatusCallback(data);
 
-    if (!match) { await ctx.answerCbQuery('Ошибка'); return; }
+    if (!parsed) { await ctx.answerCbQuery('Ошибка'); return; }
 
-    const ticketId = match[1];
-    const newStatus = match[2] as TicketStatus;
+    const ticketId = parsed.ticketId;
+    const newStatus = parsed.status as TicketStatus;
     const user = ctx.user!;
 
     const rawId = (user as any)._id ?? (user as any).id;
@@ -132,7 +135,9 @@ export const setupCallbackHandlers = (bot: any): void => {
       }
     } catch (error: any) {
       await ctx.reply(`${error.message}`);
-      logger.error('Error in status callback:', error);
+      if (!(error instanceof AppError)) {
+        logger.error('Error in status callback:', error);
+      }
     }
   });
 };

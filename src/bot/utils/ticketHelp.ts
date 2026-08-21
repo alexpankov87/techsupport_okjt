@@ -1,9 +1,11 @@
 /** Short cheat sheet: how a regular user submits a ticket. */
-export const TICKET_HELP_BUTTON = '❓ Как подать заявку';
+export const TICKET_HELP_BUTTON = '📖 Инструкция';
+/** Current label + leftover keyboard from older builds. */
+export const TICKET_HELP_BUTTONS = [TICKET_HELP_BUTTON, '❓ Как подать заявку'];
 
 export const TICKET_HELP_TEXT =
-  '❓ Как подать заявку\n\n' +
-  '1. Нажмите «📝 Подать заявку»\n' +
+  '📖 Инструкция: как подать заявку\n\n' +
+  '1. Нажмите «📝 Подать заявку» внизу экрана\n' +
   '2. Опишите проблему одним сообщением (что случилось, кабинет/место)\n' +
   '3. Укажите телефон для связи (если уже сохраняли — шаг пропустится)\n' +
   '4. Пришлите фото/видео (альбом до 10 шт.) или «⏭ Пропустить»\n' +

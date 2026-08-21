@@ -19,7 +19,7 @@ import { formatUserPhone } from './utils/phone';
 import { assigneePickerRows, buildAssignNotices } from './utils/assignees';
 import { sendJournalTickets, canManageJournal } from './utils/journal';
 import { journalMenuKeyboard, JOURNAL_FILTERS } from './keyboards/journal.keyboard';
-import { TICKET_HELP_BUTTON, TICKET_HELP_TEXT } from './utils/ticketHelp';
+import { TICKET_HELP_BUTTONS, TICKET_HELP_TEXT } from './utils/ticketHelp';
 import { commandsForRole, DEFAULT_COMMANDS } from './utils/commands';
 
 export const createBot = (token: string): Telegraf<BotContext> => {
@@ -81,10 +81,15 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     if (user.role === UserRole.SUPER_ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Супер-админ 👑`, superAdminMainKeyboard);
     else if (user.role === UserRole.ADMIN) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Администратор`, adminMainKeyboard);
     else if (user.role === UserRole.WORKER) await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\nРоль: Сотрудник тех.службы\n\n📝 Подать заявку\n📋 Мои заявки`, workerMainKeyboard);
-    else await ctx.reply(`Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\n\n📝 Подать заявку\n📋 Мои заявки\n❓ Как подать заявку`, userMainKeyboard);
+    else await ctx.reply(
+      `Добро пожаловать, ${user.firstName}!\nТОО "Окжетпес-Т"\n\n` +
+      `Нажмите кнопку внизу экрана:\n` +
+      `📝 Подать заявку\n📋 Мои заявки\n📖 Инструкция`,
+      userMainKeyboard,
+    );
   });
 
-  bot.hears(TICKET_HELP_BUTTON, async (ctx) => { await ctx.reply(TICKET_HELP_TEXT); });
+  bot.hears(TICKET_HELP_BUTTONS, async (ctx) => { await ctx.reply(TICKET_HELP_TEXT); });
   bot.command('help', async (ctx) => {
     const user = ctx.user;
     if (!user) {
@@ -542,7 +547,7 @@ export const createBot = (token: string): Telegraf<BotContext> => {
   // Unmatched free text (outside scenes): nudge to menu / apply — last so hears/commands win first
   bot.on('text', async (ctx) => {
     if (ctx.scene?.current) return;
-    await ctx.reply('Не понял сообщение.\n\nНажмите /start для меню или «📝 Подать заявку».');
+    await ctx.reply('Не понял сообщение.\n\nНажмите «📝 Подать заявку» или «📖 Инструкция».');
   });
 
   logger.info('Bot handlers initialized');

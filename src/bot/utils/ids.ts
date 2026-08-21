@@ -25,3 +25,14 @@ export function parseCategoryCallback(data: string): TicketCategory | undefined 
   const value = m[1] as TicketCategory;
   return Object.values(TicketCategory).includes(value) ? value : undefined;
 }
+
+const STATUS_CALLBACK =
+  /^status_([a-fA-F0-9]{24})_(in_progress|resolved|unresolved|completed|cancelled)$/;
+
+export function parseStatusCallback(
+  data: string,
+): { ticketId: string; status: string } | undefined {
+  const m = STATUS_CALLBACK.exec(data);
+  if (!m) return undefined;
+  return { ticketId: m[1], status: m[2] };
+}

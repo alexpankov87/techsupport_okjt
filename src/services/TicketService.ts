@@ -61,7 +61,8 @@ export class TicketService {
   }
 
   async getTicketById(id: string): Promise<ITicket> {
-    const ticket = await this.ticketRepository.findById(id);
+    const oid = requireObjectId(id, 'заявка');
+    const ticket = await this.ticketRepository.findById(oid.toHexString());
     if (!ticket) throw new NotFoundError('Заявка не найдена');
     return ticket;
   }

@@ -68,12 +68,16 @@ if (!workerKb.includes('📝 Подать заявку')) fail('worker must be a
 else ok('worker can submit tickets');
 
 const userKb = read('src/bot/keyboards/user.keyboard.ts');
-if (!userKb.includes('❓ Как подать заявку')) fail('user keyboard missing ticket help');
-else ok('user keyboard has ticket help');
+if (!userKb.includes('📖 Инструкция')) fail('user keyboard missing separate Инструкция button');
+else ok('user keyboard has Инструкция');
 const botSrc = read('src/bot/bot.ts');
 const helpUtil = read('src/bot/utils/ticketHelp.ts');
-if (!helpUtil.includes('TICKET_HELP_TEXT') || !botSrc.includes('TICKET_HELP_BUTTON')) fail('ticket help not wired');
+if (!helpUtil.includes('TICKET_HELP_TEXT') || !helpUtil.includes('TICKET_HELP_BUTTONS')) fail('ticket help aliases missing');
+else ok('ticket help aliases');
+if (!botSrc.includes('TICKET_HELP_BUTTONS')) fail('bot must hear all instruction button labels');
 else ok('ticket help wired');
+if (!botSrc.includes('📖 Инструкция')) fail('welcome/nudge must mention Инструкция');
+else ok('user-facing copy mentions Инструкция');
 
 // repo supports resolvedAt filter
 const repo = read('src/repositories/TicketRepository.ts');
@@ -170,14 +174,22 @@ if (!reportHandler.includes('generateXlsxReport') || !reportHandler.includes('ge
   fail('report handler must wire xlsx and pdf generators');
 } else ok('report Excel/PDF handlers');
 
-if (!botTs.includes("bot.on('text'") || !botTs.includes('Не понял сообщение')) {
-  fail('unmatched free text must nudge to /start or apply');
+if (!botTs.includes("bot.on('text'") || !botTs.includes('Не понял сообщение') || !botTs.includes('Инструкция')) {
+  fail('unmatched free text must nudge to apply or Инструкция');
 } else ok('unmatched text nudge');
 
 const statusCb = read('src/bot/handlers/callback.handler.ts');
 if (!statusCb.includes('editMessageText') || !statusCb.includes('refreshWorkerTicketCard')) {
   fail('status change must edit the ticket card in place');
 } else ok('live ticket card on status change');
+if (!statusCb.includes('parseStatusCallback') || !statusCb.includes('instanceof AppError')) {
+  fail('status callback must parse ids safely and not log expected AppError');
+} else ok('status callback treats business errors as user messages');
+
+const ticketSvc = read('src/services/TicketService.ts');
+if (!/getTicketById\([\s\S]*requireObjectId/.test(ticketSvc)) {
+  fail('getTicketById must reject non-ObjectId before mongoose cast');
+} else ok('getTicketById validates ObjectId');
 
 const cmdUtil = read('src/bot/utils/commands.ts');
 if (!cmdUtil.includes('commandsForRole') || !cmdUtil.includes('DEFAULT_COMMANDS') || !cmdUtil.includes("'apply'")) {

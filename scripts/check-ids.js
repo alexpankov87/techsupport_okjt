@@ -9,6 +9,7 @@ const {
   parseObjectId,
   parseWorkerCallback,
   parseCategoryCallback,
+  parseStatusCallback,
 } = require(path.join(__dirname, '..', 'dist', 'bot', 'utils', 'ids.js'));
 
 function ok(m) { console.log('OK:', m); }
@@ -29,5 +30,13 @@ assert.strictEqual(parseCategoryCallback('category_printer'), 'printer');
 assert.strictEqual(parseCategoryCallback('worker_507f1f77bcf86cd799439011'), undefined);
 assert.strictEqual(parseCategoryCallback('category_nope'), undefined);
 ok('parseCategoryCallback');
+
+const parsed = parseStatusCallback('status_6a42590645d6581424c0496c_in_progress');
+assert.ok(parsed);
+assert.strictEqual(parsed.ticketId, '6a42590645d6581424c0496c');
+assert.strictEqual(parsed.status, 'in_progress');
+assert.strictEqual(parseStatusCallback('status_6a42590645d6581424c0496c_in'), undefined);
+assert.strictEqual(parseStatusCallback('status_not-an-id_resolved'), undefined);
+ok('parseStatusCallback keeps ObjectId intact for in_progress');
 
 console.log('All id/callback checks passed');
