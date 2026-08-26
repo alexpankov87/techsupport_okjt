@@ -100,6 +100,8 @@ for (const file of ['src/bot/scenes/createTicket.scene.ts', 'src/bot/scenes/crea
   else ok(`${path.basename(file)} has no title step`);
   if (!src.includes('titleFromDescription')) fail(`${file} must derive title from description`);
   else ok(`${path.basename(file)} derives title`);
+  if (!src.includes('parseTicketDescription')) fail(`${file} must reject /start as description`);
+  else ok(`${path.basename(file)} validates description`);
   if (!src.includes('takeMediaStep')) fail(`${file} must use takeMediaStep for album-safe media step`);
   else ok(`${path.basename(file)} uses takeMediaStep`);
 }
@@ -174,6 +176,9 @@ if (!reportHandler.includes('generateXlsxReport') || !reportHandler.includes('ge
   fail('report handler must wire xlsx and pdf generators');
 } else ok('report Excel/PDF handlers');
 
+if (!botTs.includes('isIgnorableTelegramError')) fail('bot.catch must ignore stale callback queries');
+else ok('stale callback queries ignored');
+
 if (!botTs.includes("bot.on('text'") || !botTs.includes('Не понял сообщение') || !botTs.includes('Инструкция')) {
   fail('unmatched free text must nudge to apply or Инструкция');
 } else ok('unmatched text nudge');
@@ -187,6 +192,9 @@ if (!statusCb.includes('parseStatusCallback') || !statusCb.includes('instanceof 
 } else ok('status callback treats business errors as user messages');
 
 const ticketSvc = read('src/services/TicketService.ts');
+if (!ticketSvc.includes('parseTicketDescription')) fail('createTicket must reject command-like description');
+else ok('createTicket validates description');
+
 if (!/getTicketById\([\s\S]*requireObjectId/.test(ticketSvc)) {
   fail('getTicketById must reject non-ObjectId before mongoose cast');
 } else ok('getTicketById validates ObjectId');
@@ -198,5 +206,9 @@ if (!cmdUtil.includes('commandsForRole') || !cmdUtil.includes('DEFAULT_COMMANDS'
 if (!botTs.includes('syncChatCommands') || !botTs.includes("scope: { type: 'chat'")) {
   fail('/start must sync chat-scoped commands by role');
 } else ok('chat-scoped commands on /start');
+
+const scenesIndex = read('src/bot/scenes/index.ts');
+if (!scenesIndex.includes('attachSceneEscape')) fail('scenes must intercept /start so it is not ticket text');
+else ok('scenes intercept slash commands');
 
 if (failed) process.exit(1);

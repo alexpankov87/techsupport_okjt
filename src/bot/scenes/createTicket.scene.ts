@@ -10,6 +10,7 @@ import { assigneeLabel } from '../utils/assignees';
 import { titleFromDescription } from '../../utils/title';
 import { takeMediaStep } from '../utils/mediaStep';
 import { parseCategoryCallback, parseObjectId, parseWorkerCallback } from '../utils/ids';
+import { DESCRIPTION_RETRY, parseTicketDescription } from '../../utils/description';
 
 interface CreateTicketState {
   description?: string;
@@ -50,12 +51,13 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
 
   async (ctx) => {
     if (!ctx.message || !('text' in ctx.message)) return;
-    const state = ctx.scene.state as CreateTicketState;
-    state.description = ctx.message.text.trim();
-    if (!state.description) {
-      await ctx.reply('Опишите проблему текстом:');
+    const parsed = parseTicketDescription(ctx.message.text);
+    if (!parsed.ok) {
+      await ctx.reply(DESCRIPTION_RETRY);
       return;
     }
+    const state = ctx.scene.state as CreateTicketState;
+    state.description = parsed.text;
 
     const phone = await resolveUserPhone(ctx);
     if (phone) {

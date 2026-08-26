@@ -5,6 +5,7 @@ import { UserService, TicketService } from '../services';
 import { UserRepository, TicketRepository } from '../repositories';
 import { UserRole, TicketStatus, UserModel } from '../models';
 import { logger } from '../utils/logger';
+import { isIgnorableTelegramError } from '../utils/errors';
 import { workerMainKeyboard } from './keyboards';
 import { userMainKeyboard } from './keyboards/user.keyboard';
 import { superAdminMainKeyboard } from './keyboards/superAdmin.keyboard';
@@ -27,6 +28,10 @@ export const createBot = (token: string): Telegraf<BotContext> => {
 
   // Don't let Telegram blips (ETIMEDOUT etc.) kill the process — Docker would restart, but users lose mid-flow.
   bot.catch((err, ctx) => {
+    if (isIgnorableTelegramError(err)) {
+      logger.warn(`Stale Telegram update ignored (${ctx?.updateType ?? '?'})`);
+      return;
+    }
     logger.error(`Bot error (update ${ctx?.updateType ?? '?'}):`, err);
   });
 

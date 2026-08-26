@@ -31,3 +31,14 @@ export class TicketStatusError extends AppError {
     super(message, 422);
   }
 }
+
+/** Telegram callback answers expire ~30s; queued/stale clicks are noise, not crashes. */
+export function isIgnorableTelegramError(err: unknown): boolean {
+  const e = err as { message?: string; response?: { description?: string } };
+  const desc = `${e?.response?.description ?? ''} ${e?.message ?? err ?? ''}`;
+  return (
+    desc.includes('query is too old') ||
+    desc.includes('query ID is invalid') ||
+    desc.includes('message is not modified')
+  );
+}

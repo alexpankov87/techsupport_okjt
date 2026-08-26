@@ -1,6 +1,7 @@
 import { TicketRepository, TicketFilters } from '../repositories';
 import { ITicket, TicketStatus, TicketCategory } from '../models';
 import { ValidationError, TicketStatusError, NotFoundError } from '../utils/errors';
+import { parseTicketDescription } from '../utils/description';
 import { logger } from '../utils/logger';
 import { isValidPhone, pickPhone } from '../utils/phone';
 import mongoose from 'mongoose';
@@ -20,6 +21,9 @@ export class TicketService {
     createdBy: string, assignedTo?: string, phone?: string, media?: string[],
   ): Promise<ITicket> {
     if (!title || !description || !category) throw new ValidationError('Заполните все обязательные поля');
+    if (!parseTicketDescription(description).ok) {
+      throw new ValidationError('Опишите проблему своими словами, не командой');
+    }
     if (!Object.values(TicketCategory).includes(category as TicketCategory)) throw new ValidationError('Неверная категория');
     const normalizedPhone = isValidPhone(phone) ? phone!.trim() : undefined;
     return await this.ticketRepository.create({
