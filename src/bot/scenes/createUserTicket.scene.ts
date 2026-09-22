@@ -8,6 +8,7 @@ import { acceptPhoneInput, promptMediaStep, resolveUserPhone } from '../utils/ph
 import { isValidPhone } from '../../utils/phone';
 import { titleFromDescription } from '../../utils/title';
 import { takeMediaStep } from '../utils/mediaStep';
+import { sendStoredMedia } from '../utils/sendStoredMedia';
 import { parseCategoryCallback } from '../utils/ids';
 import { DESCRIPTION_RETRY, parseTicketDescription } from '../../utils/description';
 
@@ -116,11 +117,7 @@ export const createUserTicketScene = new Scenes.WizardScene<BotContext>(
       const admins = await UserModel.find({ role: { $in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }, isActive: true });
       for (const admin of admins) {
         await ctx.telegram.sendMessage(admin.telegramId, `🔔 Новая заявка #${ticket.number}\n\n📋 ${ticket.title}\n📄 ${ticket.description}\n📞 ${state.phone || 'Не указан'}\n📂 ${ticket.category}\n👤 От: ${firstName}\n\nНазначьте исполнителя!`);
-        if (state.media?.length) {
-          for (const fileId of state.media) {
-            try { await ctx.telegram.sendPhoto(admin.telegramId, fileId).catch(() => ctx.telegram.sendVideo(admin.telegramId, fileId).catch(() => ctx.telegram.sendVoice(admin.telegramId, fileId).catch(() => ctx.telegram.sendAudio(admin.telegramId, fileId).catch(() => ctx.telegram.sendDocument(admin.telegramId, fileId))))); } catch {}
-          }
-        }
+        await sendStoredMedia(ctx.telegram, admin.telegramId, state.media);
       }
     } catch (error: any) {
       await ctx.reply(`❌ Ошибка: ${error.message}`);

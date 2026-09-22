@@ -211,4 +211,20 @@ const scenesIndex = read('src/bot/scenes/index.ts');
 if (!scenesIndex.includes('attachSceneEscape')) fail('scenes must intercept /start so it is not ticket text');
 else ok('scenes intercept slash commands');
 
+const mediaSend = read('src/bot/utils/sendStoredMedia.ts');
+if (!mediaSend.includes('sendVoice') || !mediaSend.includes('sendVideo') || !mediaSend.includes('sendAudio')) {
+  fail('stored media must try photo, video, voice, audio, document');
+} else ok('stored media probes file types');
+if (!botTs.includes('sendStoredMedia') || !botTs.includes('full.media')) {
+  fail('assign must forward ticket media to the assignee');
+} else ok('assign forwards media');
+const ticketKb = read('src/bot/keyboards/ticket.keyboard.ts');
+if (!ticketKb.includes('view_media_') || !ticketKb.includes('hasMedia')) {
+  fail('worker ticket card must offer attachments');
+} else ok('worker card has attachments button');
+const assigneesSrc = read('src/bot/utils/assignees.ts');
+if (!assigneesSrc.includes('executorTicketText') || !assigneesSrc.includes('description')) {
+  fail('assignee notice must include ticket description');
+} else ok('assignee notice includes description');
+
 if (failed) process.exit(1);

@@ -9,6 +9,7 @@ import { isValidPhone } from '../../utils/phone';
 import { assigneeLabel } from '../utils/assignees';
 import { titleFromDescription } from '../../utils/title';
 import { takeMediaStep } from '../utils/mediaStep';
+import { sendStoredMedia } from '../utils/sendStoredMedia';
 import { parseCategoryCallback, parseObjectId, parseWorkerCallback } from '../utils/ids';
 import { DESCRIPTION_RETRY, parseTicketDescription } from '../../utils/description';
 
@@ -187,21 +188,7 @@ export const createTicketScene = new Scenes.WizardScene<BotContext>(
           worker.telegramId,
           `🔔 Новая заявка #${ticket.number}\n\n📋 ${ticket.title}\n📄 ${ticket.description}\n📞 ${state.phone || 'Не указан'}\n📂 ${ticket.category}\n\nПримите заявку в работу!`,
         );
-        if (state.media?.length) {
-          for (const fileId of state.media) {
-            try {
-              await ctx.telegram.sendPhoto(worker.telegramId, fileId).catch(() =>
-                ctx.telegram.sendVideo(worker.telegramId, fileId).catch(() =>
-                  ctx.telegram.sendVoice(worker.telegramId, fileId).catch(() =>
-                    ctx.telegram.sendAudio(worker.telegramId, fileId).catch(() =>
-                      ctx.telegram.sendDocument(worker.telegramId, fileId)
-                    )
-                  )
-                )
-              );
-            } catch {}
-          }
-        }
+        await sendStoredMedia(ctx.telegram, worker.telegramId, state.media);
       }
 
       const { UserModel } = await import('../../models');

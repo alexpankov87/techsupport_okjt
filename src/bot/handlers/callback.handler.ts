@@ -23,14 +23,17 @@ async function refreshWorkerTicketCard(ctx: BotContext, ticket: {
   title: string;
   description: string;
   status: TicketStatus | string;
+  media?: string[];
 }): Promise<void> {
   const status = ticket.status as TicketStatus;
+  const hasMedia = Boolean(ticket.media?.length);
   const text =
     `📋 #${ticket.number} - ${ticket.title}\n` +
     `📄 ${ticket.description}\n` +
     `📞 ${ctx.ticketService.displayPhone(ticket as any)}\n` +
-    `📊 ${STATUS_LABELS[status] || status}`;
-  const keyboard = ticketStatusKeyboard(ticket._id.toString(), status);
+    `📊 ${STATUS_LABELS[status] || status}` +
+    (hasMedia ? `\n📎 Вложений: ${ticket.media!.length}` : '');
+  const keyboard = ticketStatusKeyboard(ticket._id.toString(), status, hasMedia);
   const extra = {
     reply_markup: keyboard?.reply_markup ?? { inline_keyboard: [] as never[] },
   };

@@ -18,6 +18,7 @@ import { setupAdminActions } from './handlers/admin.handler';
 import { setupUserManagementHandlers } from './handlers/userManagement.handler';
 import { formatUserPhone } from './utils/phone';
 import { assigneePickerRows, buildAssignNotices } from './utils/assignees';
+import { sendStoredMedia } from './utils/sendStoredMedia';
 import { sendJournalTickets, canManageJournal } from './utils/journal';
 import { journalMenuKeyboard, JOURNAL_FILTERS } from './keyboards/journal.keyboard';
 import { TICKET_HELP_BUTTONS, TICKET_HELP_TEXT } from './utils/ticketHelp';
@@ -160,9 +161,11 @@ export const createBot = (token: string): Telegraf<BotContext> => {
       };
       for (const t of tickets) {
         const statusText = statusRu[t.status as any] || String(t.status);
+        const hasMedia = Boolean(t.media?.length);
         const body =
-          `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${ctx.ticketService.displayPhone(t)}\n📊 ${statusText}`;
-        const keyboard = ticketStatusKeyboard(t._id.toString(), t.status as TicketStatus);
+          `📋 #${t.number} - ${t.title}\n📄 ${t.description}\n📞 ${ctx.ticketService.displayPhone(t)}\n📊 ${statusText}` +
+          (hasMedia ? `\n📎 Вложений: ${t.media!.length}` : '');
+        const keyboard = ticketStatusKeyboard(t._id.toString(), t.status as TicketStatus, hasMedia);
         if (keyboard) {
           await ctx.reply(body, { reply_markup: keyboard.reply_markup });
         } else {
@@ -489,11 +492,17 @@ export const createBot = (token: string): Telegraf<BotContext> => {
         workerTg: worker.telegramId,
         takeSelf,
         number: ticket.number,
-        title: ticket.title,
+        title: full.title,
         workerName: worker.firstName,
+        description: full.description,
+        phone: ctx.ticketService.displayPhone(full),
       });
       for (const n of notices) {
         await ctx.telegram.sendMessage(n.chatId, n.text).catch(() => undefined);
+      }
+      // Author already has the files they uploaded. Assignee gets them with the ticket.
+      if (worker.telegramId && worker.telegramId !== creatorUser?.telegramId && full.media?.length) {
+        await sendStoredMedia(ctx.telegram, worker.telegramId, full.media);
       }
     } catch (e: any) { await ctx.reply(`❌ ${e.message}`); }
   });
@@ -502,11 +511,10 @@ export const createBot = (token: string): Telegraf<BotContext> => {
     const ticketId = (ctx as any).match[1];
     const repo = new TicketRepository();
     const ticket = await repo.findById(ticketId);
-    if (ticket && (ticket as any).media?.length) {
+    if (ticket && (ticket as any).media?.length && ctx.chat) {
       await ctx.reply(`📎 Вложения #${ticket.number}:`);
-      for (const fid of (ticket as any).media) {
-        try { await ctx.telegram.sendPhoto(ctx.chat!.id, fid).catch(() => ctx.telegram.sendVideo(ctx.chat!.id, fid).catch(() => ctx.telegram.sendVoice(ctx.chat!.id, fid).catch(() => ctx.telegram.sendAudio(ctx.chat!.id, fid).catch(() => ctx.telegram.sendDocument(ctx.chat!.id, fid))))); } catch {}
-      }
+      const sent = await sendStoredMedia(ctx.telegram, ctx.chat.id, (ticket as any).media);
+      if (!sent) await ctx.reply('Не удалось открыть вложения');
     } else { await ctx.reply('Нет вложений'); }
     await ctx.answerCbQuery();
   });

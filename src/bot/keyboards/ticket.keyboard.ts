@@ -37,14 +37,19 @@ const STATUS_TRANSITIONS: Record<TicketStatus, { label: string; status: TicketSt
   [TicketStatus.CANCELLED]:   [],
 };
 
-export const ticketStatusKeyboard = (ticketId: string, currentStatus: TicketStatus) => {
+export const ticketStatusKeyboard = (
+  ticketId: string,
+  currentStatus: TicketStatus,
+  hasMedia = false,
+) => {
   const transitions = STATUS_TRANSITIONS[currentStatus] ?? [];
-
-  if (transitions.length === 0) return null;
-
   const buttons = transitions.map(({ label, status }) =>
     [Markup.button.callback(label, `status_${ticketId}_${status}`)],
   );
+  if (hasMedia) {
+    buttons.push([Markup.button.callback('📎 Вложения', `view_media_${ticketId}`)]);
+  }
+  if (buttons.length === 0) return null;
 
   return Markup.inlineKeyboard(buttons);
 };

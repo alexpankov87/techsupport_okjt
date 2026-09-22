@@ -44,6 +44,20 @@ export function assigneePickerRows(
   }]);
 }
 
+/** Full ticket text for the assignee — description and phone when we have them. */
+export function executorTicketText(opts: {
+  number: string | number;
+  title: string;
+  description?: string;
+  phone?: string;
+}): string {
+  const lines = [`🔔 Заявка #${opts.number}`, `📋 ${opts.title}`];
+  if (opts.description) lines.push(`📄 ${opts.description}`);
+  if (opts.phone && opts.phone !== 'Не указан') lines.push(`📞 ${opts.phone}`);
+  lines.push('', 'Примите в работу!');
+  return lines.join('\n');
+}
+
 /** Who gets which Telegram text after assign — one ping when author === assignee. */
 export function buildAssignNotices(opts: {
   creatorTg?: number | null;
@@ -52,8 +66,10 @@ export function buildAssignNotices(opts: {
   number: string | number;
   title: string;
   workerName: string;
+  description?: string;
+  phone?: string;
 }): Array<{ chatId: number; text: string }> {
-  const { creatorTg, workerTg, takeSelf, number, title, workerName } = opts;
+  const { creatorTg, workerTg, takeSelf, number, title, workerName, description, phone } = opts;
   const statusText = takeSelf ? 'В работе' : 'Назначена';
 
   if (creatorTg && workerTg && creatorTg === workerTg) {
@@ -74,7 +90,7 @@ export function buildAssignNotices(opts: {
   if (!takeSelf && workerTg) {
     out.push({
       chatId: workerTg,
-      text: `🔔 Заявка #${number}\n📋 ${title}\n\nПримите в работу!`,
+      text: executorTicketText({ number, title, description, phone }),
     });
   }
   return out;
